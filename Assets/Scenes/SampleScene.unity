@@ -586,8 +586,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   camManager: {fileID: 223974230}
   tagSize: 0.13
+  referenceTagId: 0
+  carTagId: 1
+  fovMode: 0
   pcIp: 192.168.0.19
   udpPort: 5005
+  sendRateHz: 30
+  invertX: 0
+  invertY: 1
+  invertYaw: 0
+  showAxisOverlay: 1
+  axisLength: 0.08
 --- !u!4 &1799114884
 Transform:
   m_ObjectHideFlags: 0
