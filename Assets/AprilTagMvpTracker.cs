@@ -1,6 +1,34 @@
-﻿using AprilTag;
+﻿/*
+AprilTagMvpTracker.cs
+- nadzoruje ARCameraManager
+- pobiera XRCpuImage
+- odpala AprilTag detector
+- liczy relację ID0 -> ID1
+- wysyła UDP
+- przekazuje dane do GUI i overlayu
+
+TrackerGuiOverlay.cs
+- menu
+- deadman
+- speed slider
+- debug box
+
+UdpTelemetrySender.cs
+- ramka UDP
+- CRC
+- bufor wysyłki
+
+AprilTagAxisOverlayRenderer.cs
+- biały obrys
+- osie X/Y/Z
+- symbol Z
+- mapowanie CPU image -> ekran
+*/
+
+
+
+using AprilTag;
 using System;
-using System.Collections.Generic;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
@@ -16,7 +44,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         Cover180
     }
 
-    private const string BUILD_MARK = "Z_MENU_FIX_V15";
+    private const string BUILD_MARK = "V18_GUI_UDP_OVERLAY_SPLIT";
 
     private const bool FORCE_START_CALIBRATION = true;
 
@@ -120,18 +148,12 @@ public class AprilTagMvpTracker : MonoBehaviour
 
 
     private string _debugText = "Szukam sygnału ARCore...";
-    //private GUIStyle _guiStyle;
-    //private GUIStyle _menuStyle;
-    //private GUIStyle _buttonStyle;
-
-    //private float _lastSendTime = 0f;
-
+    
     private int _currentDetectorWidth = 0;
     private int _currentDetectorHeight = 0;
-
-    //private bool _isMenuOpen = false;
-    //private Vector2 _menuScroll = Vector2.zero;
+        
     private TrackerGuiOverlay _guiOverlay;
+    private AprilTagAxisOverlayRenderer _axisOverlay;
 
     private float _fx;
     private float _fy;
@@ -141,22 +163,7 @@ public class AprilTagMvpTracker : MonoBehaviour
     private float _lastRawDistance = 0f;
     private float _lastCorrectedDistance = 0f;
 
-    private struct AxisGuiLine
-    {
-        public Vector2 a;
-        public Vector2 b;
-        public Color color;
-
-        public AxisGuiLine(Vector2 a, Vector2 b, Color color)
-        {
-            this.a = a;
-            this.b = b;
-            this.color = color;
-        }
-    }
-
-    private readonly List<AxisGuiLine> _axisGuiLines = new List<AxisGuiLine>();
-
+    
     void Start()
     {
         Application.targetFrameRate = 60;
@@ -196,7 +203,7 @@ public class AprilTagMvpTracker : MonoBehaviour
 
         _telemetry = new UdpTelemetrySender(pcIp, udpPort, sendRateHz);
         _guiOverlay = new TrackerGuiOverlay();
-        //InitGui();
+        _axisOverlay = new AprilTagAxisOverlayRenderer();
     }
 
     void OnEnable()
@@ -233,7 +240,7 @@ public class AprilTagMvpTracker : MonoBehaviour
             // to stary overlay/debug uznajemy za nieaktualny.
             if (Time.time - _lastSuccessfulCpuImageTime > staleOverlayTimeout)
             {
-                _axisGuiLines.Clear();
+                _axisOverlay?.Clear();
 
                 float fps = 1f / Mathf.Max(Time.deltaTime, 0.0001f);
                 int fpsHz = Mathf.RoundToInt(fps);
@@ -263,7 +270,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         {
             _lastSuccessfulCpuImageTime = Time.time;
 
-            _axisGuiLines.Clear();
+            _axisOverlay?.Clear();
             int w = image.width;
             int h = image.height;
 
@@ -340,10 +347,16 @@ public class AprilTagMvpTracker : MonoBehaviour
 
                 if ((tag.ID == referenceTagId || tag.ID == carTagId) && showAxisOverlay)
                 {
-                    if (useEdgeBasedOverlay)
-                        AddAxesFromRealCorners2D(tag, w, h);
-                    else
-                        AddAxes2D(tag.Position, tag.Rotation, w, h);
+                    _axisOverlay?.AddAxes(
+                        tag,
+                        w,
+                        h,
+                        this,
+                        _fx,
+                        _fy,
+                        _cx,
+                        _cy
+                    );
                 }
 
                 Matrix4x4 pose = Matrix4x4.TRS(tag.Position, tag.Rotation, Vector3.one);
@@ -393,7 +406,6 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"Zmirror X:{mirrorZScreenX} Y:{mirrorZScreenY} | Zinv:{invertZAxisDirection}\n" +
                     $"CMD deadman:{deadmanPressed} speed:{speedPercent}%";
                 
-                //SendTelemetry(x, y, yaw, fps);
                 _telemetry?.Send(
                 x,
                 y,
@@ -427,382 +439,6 @@ public class AprilTagMvpTracker : MonoBehaviour
             }
         }
     }
-    void AddAxes2D(Vector3 rawPos, Quaternion rawRot, int imgW, int imgH)
-    {
-        Vector3 origin = new Vector3(rawPos.x, -rawPos.y, rawPos.z);
-        Quaternion rot = GetOverlayRotation(rawRot);
-
-        Vector3 xAxis3D = rot * Vector3.right * axisLength;
-        Vector3 yAxis3D = rot * Vector3.up * axisLength;
-        Vector3 zAxis3D = rot * Vector3.forward * axisLength;
-
-        if (invertX)
-            xAxis3D = -xAxis3D;
-
-        if (invertY)
-            yAxis3D = -yAxis3D;
-
-        if (invertZAxisDirection)
-            zAxis3D = -zAxis3D;
-
-        Vector3 xEnd3D = origin + xAxis3D;
-        Vector3 yEnd3D = origin + yAxis3D;
-        Vector3 zEnd3D = origin + zAxis3D;
-
-        if (!ProjectCameraPointToScreen(origin, imgW, imgH, out Vector2 center))
-            return;
-
-        if (showXAxis && ProjectCameraPointToScreen(xEnd3D, imgW, imgH, out Vector2 xEnd))
-            _axisGuiLines.Add(new AxisGuiLine(center, xEnd, Color.red));
-
-        if (showYAxis && ProjectCameraPointToScreen(yEnd3D, imgW, imgH, out Vector2 yEnd))
-            _axisGuiLines.Add(new AxisGuiLine(center, yEnd, Color.green));
-
-        if (showZAxis && ProjectCameraPointToScreen(zEnd3D, imgW, imgH, out Vector2 zEnd))
-            AddProjectedZAxisOrSymbol(center, center, zEnd, rawRot, 24f);
-    }
-    void AddAxesFromRealCorners2D(TagPose tag, int imgW, int imgH)
-    {
-        Vector2 c0 = CpuImagePixelToScreen(tag.Corner0.x, tag.Corner0.y, imgW, imgH);
-        Vector2 c1 = CpuImagePixelToScreen(tag.Corner1.x, tag.Corner1.y, imgW, imgH);
-        Vector2 c2 = CpuImagePixelToScreen(tag.Corner2.x, tag.Corner2.y, imgW, imgH);
-        Vector2 c3 = CpuImagePixelToScreen(tag.Corner3.x, tag.Corner3.y, imgW, imgH);
-
-        Vector2 center = CpuImagePixelToScreen(tag.Center.x, tag.Center.y, imgW, imgH);
-
-        Vector2 xDir = ((c1 - c0) + (c2 - c3)) * 0.5f;
-
-        // Y było odwrócone względem układu używanego przez pose/UDP.
-        // To jest dokładnie ta sama oś, ale z przeciwnym zwrotem.
-        Vector2 yDir = ((c3 - c0) + (c2 - c1)) * 0.5f;
-
-        float xLen = xDir.magnitude;
-        float yLen = yDir.magnitude;
-
-        if (xLen < 1f || yLen < 1f)
-            return;
-
-        xDir /= xLen;
-        yDir /= yLen;
-
-        if (invertX)
-            xDir = -xDir;
-
-        if (invertY)
-            yDir = -yDir;
-
-        float axisPx = Mathf.Min(xLen, yLen) * 0.45f;
-
-        if (showXAxis)
-            _axisGuiLines.Add(new AxisGuiLine(center, center + xDir * axisPx, Color.red));
-
-        if (showYAxis)
-            _axisGuiLines.Add(new AxisGuiLine(center, center + yDir * axisPx, Color.green));
-
-        if (showZAxis)
-            AddProjectedZAxisFromPose(tag.Position, tag.Rotation, center, imgW, imgH, axisPx);
-
-        if (drawProjectedTagBorder)
-        {
-            _axisGuiLines.Add(new AxisGuiLine(c0, c1, Color.white));
-            _axisGuiLines.Add(new AxisGuiLine(c1, c2, Color.white));
-            _axisGuiLines.Add(new AxisGuiLine(c2, c3, Color.white));
-            _axisGuiLines.Add(new AxisGuiLine(c3, c0, Color.white));
-        }
-    }
-
-
-    void AddProjectedZAxisFromPose(
-        Vector3 rawPos,
-        Quaternion rawRot,
-        Vector2 realCenter2D,
-        int imgW,
-        int imgH,
-        float axisPx)
-    {
-        Vector3 origin = new Vector3(rawPos.x, -rawPos.y, rawPos.z);
-        Quaternion rot = GetOverlayRotation(rawRot);
-
-        Vector3 zDir3D = rot * Vector3.forward;
-
-        if (invertZAxisDirection)
-            zDir3D = -zDir3D;
-
-        float safeScale = Mathf.Max(measurementScale, 0.001f);
-        float visualZLength = (axisLength / safeScale) * zAxisVisualScale;
-
-        Vector3 zEnd3D = origin + zDir3D * visualZLength;
-
-        if (!ProjectCameraPointToScreen(origin, imgW, imgH, out Vector2 poseCenter2D))
-            return;
-
-        if (!ProjectCameraPointToScreen(zEnd3D, imgW, imgH, out Vector2 zEnd2D))
-            return;
-
-        AddProjectedZAxisOrSymbol(realCenter2D, poseCenter2D, zEnd2D, rawRot, axisPx);
-    }
-
-    void AddProjectedZAxisOrSymbol(
-        Vector2 drawCenter,
-        Vector2 projectedPoseCenter,
-        Vector2 projectedZEnd,
-        Quaternion rawRot,
-        float axisPx)
-    {
-        Vector2 zDir = projectedZEnd - projectedPoseCenter;
-
-        if (mirrorZScreenX)
-            zDir.x = -zDir.x;
-
-        if (mirrorZScreenY)
-            zDir.y = -zDir.y;
-
-        float zLen = zDir.magnitude;
-
-        float symbolRadius = Mathf.Clamp(axisPx * 0.22f, 9f, 30f);
-
-        Vector3 normalCam = GetTagNormalCamera(rawRot);
-
-        if (invertZAxisDirection)
-            normalCam = -normalCam;
-
-        float angleToCameraAxisDeg = 90f;
-
-        if (normalCam.sqrMagnitude > 0.0001f)
-        {
-            normalCam.Normalize();
-
-            float absZ = Mathf.Clamp(Mathf.Abs(normalCam.z), 0f, 1f);
-            angleToCameraAxisDeg = Mathf.Acos(absZ) * Mathf.Rad2Deg;
-        }
-
-        bool useSymbolByAngle = angleToCameraAxisDeg <= zSymbolAngleThresholdDeg;
-        bool useSymbolByPixel = zLen < zSymbolThresholdPx;
-
-        if (useSymbolByAngle || useSymbolByPixel)
-        {
-            bool zTowardsCamera = IsTagZTowardsCamera(rawRot);
-            AddZSymbol2D(drawCenter, symbolRadius, zTowardsCamera);
-            return;
-        }
-
-        Vector2 zEnd = drawCenter + zDir.normalized * axisPx * 0.85f;
-
-        _axisGuiLines.Add(new AxisGuiLine(drawCenter, zEnd, Color.blue));
-
-        Vector2 dir = (zEnd - drawCenter).normalized;
-        Vector2 normal = new Vector2(-dir.y, dir.x);
-
-        float arrowSize = Mathf.Clamp(axisPx * 0.12f, 5f, 16f);
-
-        Vector2 arrowA = zEnd - dir * arrowSize + normal * arrowSize * 0.6f;
-        Vector2 arrowB = zEnd - dir * arrowSize - normal * arrowSize * 0.6f;
-
-        _axisGuiLines.Add(new AxisGuiLine(zEnd, arrowA, Color.blue));
-        _axisGuiLines.Add(new AxisGuiLine(zEnd, arrowB, Color.blue));
-    }
-
-    Quaternion GetOverlayRotation(Quaternion rawRot)
-    {
-        Quaternion rot = rawRot;
-        rot.y = -rot.y;
-        rot.w = -rot.w;
-        return rot;
-    }
-
-    Vector3 GetTagNormalCamera(Quaternion rawRot)
-    {
-        Quaternion rot = GetOverlayRotation(rawRot);
-        return rot * Vector3.forward;
-    }
-
-    bool IsTagZTowardsCamera(Quaternion rawRot)
-    {
-        Vector3 normalCam = GetTagNormalCamera(rawRot);
-
-        if (invertZAxisDirection)
-            normalCam = -normalCam;
-
-        bool zTowardsCamera = normalCam.z < 0f;
-
-        if (invertZSymbol)
-            zTowardsCamera = !zTowardsCamera;
-
-        return zTowardsCamera;
-    }
-
-    bool ProjectCameraPointToScreen(Vector3 p, int imgW, int imgH, out Vector2 screen)
-    {
-        screen = Vector2.zero;
-
-        if (p.z <= 0.001f)
-            return false;
-
-        float u = _fx * (p.x / p.z) + _cx;
-        float v = _cy - _fy * (p.y / p.z);
-
-        screen = CpuImagePixelToScreen(u, v, imgW, imgH);
-        return true;
-    }
-
-    Vector2 CpuImagePixelToScreen(float u, float v, int imgW, int imgH)
-    {
-        float nx = u / imgW;
-        float ny = v / imgH;
-
-        if (mirrorCpuX) nx = 1f - nx;
-        if (mirrorCpuY) ny = 1f - ny;
-
-        float tx = nx;
-        float ty = ny;
-        float imageAspect = (float)imgW / imgH;
-
-        switch (cpuToScreenMapping)
-        {
-            case CpuToScreenMapping.Cover0:
-                tx = nx;
-                ty = ny;
-                imageAspect = (float)imgW / imgH;
-                break;
-
-            case CpuToScreenMapping.Cover90CW:
-                tx = 1f - ny;
-                ty = nx;
-                imageAspect = (float)imgH / imgW;
-                break;
-
-            case CpuToScreenMapping.Cover90CCW:
-                tx = ny;
-                ty = 1f - nx;
-                imageAspect = (float)imgH / imgW;
-                break;
-
-            case CpuToScreenMapping.Cover180:
-                tx = 1f - nx;
-                ty = 1f - ny;
-                imageAspect = (float)imgW / imgH;
-                break;
-        }
-
-        float screenW = Screen.width;
-        float screenH = Screen.height;
-        float screenAspect = screenW / screenH;
-
-        float drawW;
-        float drawH;
-        float offsetX;
-        float offsetY;
-
-        if (imageAspect > screenAspect)
-        {
-            drawH = screenH;
-            drawW = drawH * imageAspect;
-            offsetX = (screenW - drawW) * 0.5f;
-            offsetY = 0f;
-        }
-        else
-        {
-            drawW = screenW;
-            drawH = drawW / imageAspect;
-            offsetX = 0f;
-            offsetY = (screenH - drawH) * 0.5f;
-        }
-
-        float xBase = offsetX + tx * drawW;
-        float yBase = offsetY + ty * drawH;
-
-        float x = ((xBase - screenW * 0.5f) * screenOverlayScale) + screenW * 0.5f;
-        float y = ((yBase - screenH * 0.5f) * screenOverlayScale) + screenH * 0.5f;
-
-        return new Vector2(x, y);
-    }
-
-    void AddCircle2D(Vector2 center, float radius, Color color, int segments = 32)
-    {
-        float step = Mathf.PI * 2f / segments;
-
-        for (int i = 0; i < segments; i++)
-        {
-            float a0 = i * step;
-            float a1 = (i + 1) * step;
-
-            Vector2 p0 = center + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * radius;
-            Vector2 p1 = center + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * radius;
-
-            _axisGuiLines.Add(new AxisGuiLine(p0, p1, color));
-        }
-    }
-
-    void AddX2D(Vector2 center, float radius, Color color)
-    {
-        float r = radius * 0.55f;
-
-        _axisGuiLines.Add(new AxisGuiLine(
-            center + new Vector2(-r, -r),
-            center + new Vector2(r, r),
-            color
-        ));
-
-        _axisGuiLines.Add(new AxisGuiLine(
-            center + new Vector2(-r, r),
-            center + new Vector2(r, -r),
-            color
-        ));
-    }
-
-    void AddDot2D(Vector2 center, float radius, Color color)
-    {
-        float r = Mathf.Max(2.0f, radius * 0.14f);
-
-        _axisGuiLines.Add(new AxisGuiLine(
-            center + new Vector2(-r, 0f),
-            center + new Vector2(r, 0f),
-            color
-        ));
-
-        _axisGuiLines.Add(new AxisGuiLine(
-            center + new Vector2(0f, -r),
-            center + new Vector2(0f, r),
-            color
-        ));
-    }
-
-    void AddZSymbol2D(Vector2 center, float radius, bool zTowardsCamera)
-    {
-        Color color = Color.blue;
-
-        AddCircle2D(center, radius, color);
-
-        if (zTowardsCamera)
-        {
-            AddDot2D(center, radius, color);
-        }
-        else
-        {
-            AddX2D(center, radius, color);
-        }
-    }
-
-    void DrawGuiLine(Vector2 a, Vector2 b, Color color, float width)
-    {
-        Matrix4x4 oldMatrix = GUI.matrix;
-        Color oldColor = GUI.color;
-
-        Vector2 delta = b - a;
-        float length = delta.magnitude;
-
-        if (length < 0.001f)
-            return;
-
-        float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
-
-        GUI.color = color;
-        GUIUtility.RotateAroundPivot(angle, a);
-        GUI.DrawTexture(new Rect(a.x, a.y - width * 0.5f, length, width), Texture2D.whiteTexture);
-
-        GUI.matrix = oldMatrix;
-        GUI.color = oldColor;
-    }
 
     float NormalizeAngle(float angle)
     {
@@ -815,93 +451,9 @@ public class AprilTagMvpTracker : MonoBehaviour
         return angle;
     }
 
-    /*
-    void InitUdp()
-    {
-        try
-        {
-            _udp = new UdpClient();
-            _endPoint = new IPEndPoint(IPAddress.Parse(pcIp), udpPort);
-            Debug.Log($"[UDP] OK: {pcIp}:{udpPort}");
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"[UDP] Init error: {e.Message}");
-        }
-    }
-    
-    void InitGui()
-    {
-        int debugFont = Mathf.RoundToInt(Screen.height * 0.026f);
-        int menuFont = Mathf.RoundToInt(Screen.height * 0.021f);
-
-        debugFont = Mathf.Clamp(debugFont, 20, 30);
-        menuFont = Mathf.Clamp(menuFont, 18, 26);
-
-        _guiStyle = new GUIStyle
-        {
-            fontSize = debugFont,
-            fontStyle = FontStyle.Bold,
-            alignment = TextAnchor.UpperLeft,
-            wordWrap = false
-        };
-        _guiStyle.normal.textColor = Color.green;
-
-        _menuStyle = new GUIStyle
-        {
-            fontSize = menuFont,
-            fontStyle = FontStyle.Normal,
-            wordWrap = true
-        };
-        _menuStyle.normal.textColor = Color.white;
-
-        _buttonStyle = new GUIStyle(GUI.skin.button)
-        {
-            fontSize = menuFont,
-            fontStyle = FontStyle.Bold,
-            wordWrap = true
-        };
-    }
-
-
-    */
-
-    /*
-    void SendTelemetry(float x, float y, float yaw, float fps)
-    {
-        if (_udp == null || _endPoint == null)
-            return;
-
-        if (Time.time - _lastSendTime < 1f / Mathf.Max(sendRateHz, 1f))
-            return;
-
-        string data =
-            Time.time.ToString("F2", CultureInfo.InvariantCulture) + "," +
-            x.ToString("F3", CultureInfo.InvariantCulture) + "," +
-            y.ToString("F3", CultureInfo.InvariantCulture) + "," +
-            yaw.ToString("F1", CultureInfo.InvariantCulture) + "," +
-            fps.ToString("F1", CultureInfo.InvariantCulture);
-
-        try
-        {
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            _udp.Send(bytes, bytes.Length, _endPoint);
-        }
-        catch (Exception e)
-        {
-            Debug.LogWarning($"[UDP] Send error: {e.Message}");
-        }
-
-        _lastSendTime = Time.time;
-    }
-    */
-
     void OnGUI()
     {
-        foreach (var line in _axisGuiLines)
-        {
-            DrawGuiLine(line.a, line.b, line.color, 6f);
-        }
+        _axisOverlay?.Draw(6f);
 
         _guiOverlay?.Draw(
             this,
@@ -911,222 +463,13 @@ public class AprilTagMvpTracker : MonoBehaviour
             _lastCorrectedDistance
         );
     }
-    /*
-    void DrawCalibrationMenu()
-    {
-        float menuW = Mathf.Min(700f, Screen.width * 0.48f);
-        float menuH = Mathf.Min(Screen.height - 130f, 900f);
 
-        Rect menuRect = new Rect(Screen.width - menuW - 30f, 100f, menuW, menuH);
-
-        GUI.color = new Color(0f, 0f, 0f, 0.95f);
-        GUI.DrawTexture(menuRect, Texture2D.whiteTexture);
-        GUI.color = Color.white;
-
-        GUILayout.BeginArea(new Rect(menuRect.x + 18f, menuRect.y + 12f, menuW - 36f, menuH - 24f));
-        _menuScroll = GUILayout.BeginScrollView(_menuScroll, false, true);
-
-        GUILayout.Label($"BUILD: {BUILD_MARK}", _menuStyle);
-        GUILayout.Space(10);
-
-        GUILayout.Label("--- 1. Parametry AprilTag ---", _menuStyle);
-
-        GUILayout.Label($"TagSize: {tagSize:F3} m", _menuStyle);
-        tagSize = GUILayout.HorizontalSlider(tagSize, 0.05f, 0.30f);
-
-        GUILayout.Label($"FocalScale: {focalScale:F2}x", _menuStyle);
-        focalScale = GUILayout.HorizontalSlider(focalScale, 0.4f, 2.0f);
-
-        GUILayout.Space(15);
-
-        GUILayout.Label("--- 2. Korekta pomiaru ---", _menuStyle);
-
-        GUILayout.Label($"MeasurementScale: {measurementScale:F3}x", _menuStyle);
-        measurementScale = GUILayout.HorizontalSlider(measurementScale, 0.2f, 2.0f);
-
-        GUILayout.Label($"Znany dystans: {knownCalibrationDistance:F3} m", _menuStyle);
-        knownCalibrationDistance = GUILayout.HorizontalSlider(knownCalibrationDistance, 0.05f, 1.50f);
-
-        GUILayout.Label($"RAW: {_lastRawDistance:F3} m", _menuStyle);
-        GUILayout.Label($"Po korekcie: {_lastCorrectedDistance:F3} m", _menuStyle);
-
-        if (GUILayout.Button("Ustaw scale = znany dystans / RAW", _buttonStyle, GUILayout.Height(55)))
-        {
-            if (_lastRawDistance > 0.001f)
-                measurementScale = knownCalibrationDistance / _lastRawDistance;
-
-            GUIUtility.ExitGUI();
-        }
-
-        GUILayout.Space(15);
-
-        GUILayout.Label("--- 3. Kierunki UDP ---", _menuStyle);
-
-        invertX = GUILayout.Toggle(invertX, " Odwróć X", _menuStyle);
-        invertY = GUILayout.Toggle(invertY, " Odwróć Y", _menuStyle);
-        invertYaw = GUILayout.Toggle(invertYaw, " Odwróć Yaw", _menuStyle);
-
-        GUILayout.Space(15);
-
-        GUILayout.Label("--- 4. Wizualizacja ---", _menuStyle);
-
-        showAxisOverlay = GUILayout.Toggle(showAxisOverlay, " Renderuj osie 2D", _menuStyle);
-        useEdgeBasedOverlay = GUILayout.Toggle(useEdgeBasedOverlay, " Tryb REAL CORNERS", _menuStyle);
-        drawProjectedTagBorder = GUILayout.Toggle(drawProjectedTagBorder, " Biały obrys narożników", _menuStyle);
-
-        GUILayout.Label($"ScreenOverlayScale: {screenOverlayScale:F2}", _menuStyle);
-        screenOverlayScale = GUILayout.HorizontalSlider(screenOverlayScale, 0.5f, 2.0f);
-
-        GUILayout.Label($"Z symbol threshold: {zSymbolThresholdPx:F1} px", _menuStyle);
-        zSymbolThresholdPx = GUILayout.HorizontalSlider(zSymbolThresholdPx, 0f, 30f);
-
-        GUILayout.Label($"Z angle margin: {zSymbolAngleThresholdDeg:F1}°", _menuStyle);
-        zSymbolAngleThresholdDeg = GUILayout.HorizontalSlider(zSymbolAngleThresholdDeg, 0f, 20f);
-
-        GUILayout.Label($"Z Axis Visual Scale: {zAxisVisualScale:F2}x", _menuStyle);
-        zAxisVisualScale = GUILayout.HorizontalSlider(zAxisVisualScale, 0.2f, 3.0f);
-
-        invertZAxisDirection = GUILayout.Toggle(invertZAxisDirection, " Odwróć kierunek osi Z", _menuStyle);
-
-        GUILayout.Label("--- 4A. Lustrzane odbicie samej osi Z ---", _menuStyle);
-        mirrorZScreenX = GUILayout.Toggle(mirrorZScreenX, " Mirror Z Screen X", _menuStyle);
-        mirrorZScreenY = GUILayout.Toggle(mirrorZScreenY, " Mirror Z Screen Y", _menuStyle);
-        invertZSymbol = GUILayout.Toggle(invertZSymbol, " Odwróć symbol Z", _menuStyle);
-
-        GUILayout.Space(15);
-
-        GUILayout.Label("--- 5. CPU image -> ekran ---", _menuStyle);
-        GUILayout.Label($"Aktualnie: {cpuToScreenMapping}", _menuStyle);
-
-        GUILayout.BeginHorizontal();
-
-        if (GUILayout.Button(cpuToScreenMapping == CpuToScreenMapping.Cover0 ? "[Cover0]" : "Cover0", _buttonStyle, GUILayout.Height(50)))
-        {
-            cpuToScreenMapping = CpuToScreenMapping.Cover0;
-            GUIUtility.ExitGUI();
-        }
-
-        if (GUILayout.Button(cpuToScreenMapping == CpuToScreenMapping.Cover90CW ? "[90CW]" : "90CW", _buttonStyle, GUILayout.Height(50)))
-        {
-            cpuToScreenMapping = CpuToScreenMapping.Cover90CW;
-            GUIUtility.ExitGUI();
-        }
-
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal();
-
-        if (GUILayout.Button(cpuToScreenMapping == CpuToScreenMapping.Cover90CCW ? "[90CCW]" : "90CCW", _buttonStyle, GUILayout.Height(50)))
-        {
-            cpuToScreenMapping = CpuToScreenMapping.Cover90CCW;
-            GUIUtility.ExitGUI();
-        }
-
-        if (GUILayout.Button(cpuToScreenMapping == CpuToScreenMapping.Cover180 ? "[180]" : "180", _buttonStyle, GUILayout.Height(50)))
-        {
-            cpuToScreenMapping = CpuToScreenMapping.Cover180;
-            GUIUtility.ExitGUI();
-        }
-
-        GUILayout.EndHorizontal();
-
-        mirrorCpuX = GUILayout.Toggle(mirrorCpuX, " Mirror CPU X", _menuStyle);
-        mirrorCpuY = GUILayout.Toggle(mirrorCpuY, " Mirror CPU Y", _menuStyle);
-
-        GUILayout.Space(30);
-
-        GUILayout.EndScrollView();
-        GUILayout.EndArea();
-    }
-    
-
-    void DrawDebugBox()
-    {
-        float width = Screen.width * 0.70f;
-        float height = 220f;
-        float xBox = 35f;
-        float yBox = Screen.height * 0.56f;
-
-        GUI.color = new Color(0f, 0f, 0f, 0.65f);
-        GUI.DrawTexture(new Rect(xBox, yBox, width, height), Texture2D.whiteTexture);
-
-        GUI.color = Color.white;
-        GUI.Label(new Rect(xBox + 18f, yBox + 12f, width - 36f, height - 24f), _debugText, _guiStyle);
-    }
-
-    void DrawDriveControlPanel()
-    {
-        float panelW = 430f;
-        float panelH = 190f;
-
-        Rect panelRect = new Rect(35f, 25f, panelW, panelH);
-
-        GUI.color = new Color(0f, 0f, 0f, 0.75f);
-        GUI.DrawTexture(panelRect, Texture2D.whiteTexture);
-        GUI.color = Color.white;
-
-        Rect deadmanRect = new Rect(panelRect.x + 20f, panelRect.y + 18f, panelW - 40f, 80f);
-
-        deadmanPressed = IsPointerDownInside(deadmanRect);
-
-        GUI.color = deadmanPressed
-            ? new Color(0f, 0.75f, 0.15f, 0.95f)
-            : new Color(0.75f, 0f, 0f, 0.95f);
-
-        GUI.DrawTexture(deadmanRect, Texture2D.whiteTexture);
-
-        GUI.color = Color.white;
-
-        GUIStyle deadmanStyle = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = 30,
-            fontStyle = FontStyle.Bold,
-            alignment = TextAnchor.MiddleCenter
-        };
-
-        GUI.Label(
-            deadmanRect,
-            deadmanPressed ? "DEADMAN ON" : "TRZYMAJ, ABY JECHAĆ",
-            deadmanStyle
-        );
-
-        Rect labelRect = new Rect(panelRect.x + 20f, panelRect.y + 112f, panelW - 40f, 30f);
-        GUI.Label(labelRect, $"Speed limit: {speedPercent} %", _menuStyle);
-
-        Rect sliderRect = new Rect(panelRect.x + 20f, panelRect.y + 150f, panelW - 40f, 30f);
-        float speedSliderValue = GUI.HorizontalSlider(sliderRect, speedPercent, 0f, 100f);
-        speedPercent = Mathf.RoundToInt(speedSliderValue);
-    }
-    
-
-    bool IsPointerDownInside(Rect rect)
-    {
-        bool isDown = false;
-        Vector2 pointerGuiPos = Vector2.zero;
-
-        if (Input.touchCount > 0)
-        {
-            Touch touch = Input.GetTouch(0);
-
-            if (touch.phase != TouchPhase.Ended && touch.phase != TouchPhase.Canceled)
-            {
-                isDown = true;
-                pointerGuiPos = new Vector2(touch.position.x, Screen.height - touch.position.y);
-            }
-        }
-        else if (Input.GetMouseButton(0))
-        {
-            isDown = true;
-            pointerGuiPos = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
-        }
-
-        return isDown && rect.Contains(pointerGuiPos);
-    }
-    */
 
     void OnDestroy()
     {
         _detector?.Dispose();
         _telemetry?.Dispose();
+        _detector = null;
+        _telemetry = null;
     }
 }
