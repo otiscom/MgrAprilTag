@@ -31,7 +31,7 @@ public class AprilTagMvpTracker : MonoBehaviour
 
     [Header("Wydajność")]
     [Range(5f, 60f)]
-    public float visionRateHz = 20f;
+    public float visionRateHz = 45f;
     private float _lastVisionProcessTime = -999f;
 
     [Tooltip("Po ilu sekundach bez świeżej klatki CPU overlay/debug uznajemy za nieaktualny.")]
@@ -174,6 +174,11 @@ public class AprilTagMvpTracker : MonoBehaviour
             showYAxis = true;
             showZAxis = true;
             drawProjectedTagBorder = true;
+
+            invertX = false;
+            invertY = false;
+            invertYaw = false;
+            invertZAxisDirection = false;
 
             cpuToScreenMapping = CpuToScreenMapping.Cover180;
             mirrorCpuX = true;

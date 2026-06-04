@@ -1,23 +1,60 @@
 ﻿using UnityEngine;
 
+/// <summary>
+/// Odpowiada wyłącznie za rysowanie interfejsu diagnostycznego na ekranie:
+/// - przycisk kalibracji,
+/// - menu kalibracyjne,
+/// - panel DEADMAN + speed limit,
+/// - zielony debug box z aktualnymi danymi.
+///
+/// Ta klasa NIE liczy pozycji AprilTagów i NIE wysyła UDP.
+/// Dostaje referencję do AprilTagMvpTracker i tylko zmienia publiczne parametry trackera.
+/// </summary>
 public sealed class TrackerGuiOverlay
 {
+    // Jeden obiekt GUIContent używany wielokrotnie.
+    // Dzięki temu nie tworzymy new GUIContent(debugText) co klatkę.
+    private readonly GUIContent _debugContent = new GUIContent();
+
+    // Kolory trzymane jako pola, żeby nie powtarzać new Color(...) w każdej metodzie rysującej.
+    private readonly Color _menuBgColor = new Color(0f, 0f, 0f, 0.95f);
+    private readonly Color _panelBgColor = new Color(0f, 0f, 0f, 0.75f);
+    private readonly Color _debugBgColor = new Color(0f, 0f, 0f, 0.72f);
+    private readonly Color _scrollBgColor = new Color(0.08f, 0.08f, 0.08f, 0.95f);
+
+    private readonly Color _deadmanOnColor = new Color(0f, 0.75f, 0.15f, 0.95f);
+    private readonly Color _deadmanOffColor = new Color(0.75f, 0f, 0f, 0.95f);
+
+    // Style IMGUI tworzymy leniwie w EnsureStyles().
     private GUIStyle _debugStyle;
     private GUIStyle _menuStyle;
     private GUIStyle _buttonStyle;
     private GUIStyle _deadmanStyle;
     private GUIStyle _smallLabelStyle;
 
+    // Stan menu kalibracji.
     private bool _isMenuOpen = false;
+
+    // Stan rozwinięcia sekcji zaawansowanej overlayu.
     private bool _showAdvancedOverlay = false;
 
+    // Pozycja przewijania menu kalibracji.
     private Vector2 _menuScroll = Vector2.zero;
 
+    /// <summary>
+    /// Rozpoznaje orientację ekranu.
+    /// Używamy tego do innego layoutu w pionie i poziomie.
+    /// </summary>
     private bool IsPortrait()
     {
         return Screen.height > Screen.width;
     }
 
+    /// <summary>
+    /// Zwraca prostokąt menu kalibracji.
+    /// Funkcja jest wspólna dla menu i panelu DEADMAN,
+    /// żeby oba elementy wiedziały, gdzie znajduje się menu.
+    /// </summary>
     private Rect GetCalibrationMenuRect()
     {
         bool portrait = IsPortrait();
@@ -30,6 +67,10 @@ public sealed class TrackerGuiOverlay
         return new Rect(Screen.width - menuW - 30f, 100f, menuW, menuH);
     }
 
+    /// <summary>
+    /// Główna metoda rysowania GUI.
+    /// Wywoływana z AprilTagMvpTracker.OnGUI().
+    /// </summary>
     public void Draw(
         AprilTagMvpTracker tracker,
         string buildMark,
@@ -55,6 +96,10 @@ public sealed class TrackerGuiOverlay
         DrawDebugBox(debugText);
     }
 
+    /// <summary>
+    /// Tworzy style GUI tylko raz.
+    /// Nie robimy tego w każdej klatce, bo GUIStyle to obiekty referencyjne.
+    /// </summary>
     private void EnsureStyles()
     {
         if (_debugStyle != null &&
@@ -111,6 +156,10 @@ public sealed class TrackerGuiOverlay
         };
     }
 
+    /// <summary>
+    /// Przycisk otwierania/zamykania menu kalibracji.
+    /// GUIUtility.ExitGUI() jest tutaj celowe, bo zmiana menu zmienia liczbę kontrolek IMGUI.
+    /// </summary>
     private void DrawCalibrationButton()
     {
         Rect buttonRect = new Rect(Screen.width - 270f, 25f, 245f, 80f);
@@ -122,6 +171,10 @@ public sealed class TrackerGuiOverlay
         }
     }
 
+    /// <summary>
+    /// Główne menu kalibracyjne.
+    /// Zawiera parametry AprilTag, korektę skali, wizualizację i mapowanie CPU image -> ekran.
+    /// </summary>
     private void DrawCalibrationMenu(
         AprilTagMvpTracker tracker,
         string buildMark,
@@ -133,10 +186,12 @@ public sealed class TrackerGuiOverlay
         float menuW = menuRect.width;
         float menuH = menuRect.height;
 
-        GUI.color = new Color(0f, 0f, 0f, 0.95f);
+        GUI.color = _menuBgColor;
         GUI.DrawTexture(menuRect, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
+        // Lewa kolumna z dużymi przyciskami przewijania.
+        // Zrobiona dlatego, że natywny scrollbar przy krawędzi był niewygodny na telefonie.
         float scrollColumnW = 78f;
 
         Rect leftScrollRect = new Rect(
@@ -157,7 +212,7 @@ public sealed class TrackerGuiOverlay
 
         GUILayout.BeginArea(contentRect);
 
-        // Ukrywamy natywny scrollbar i dajemy duży pasek/przyciski po lewej.
+        // Ukrywamy natywny scrollbar, bo własny scroll jest po lewej.
         _menuScroll = GUILayout.BeginScrollView(_menuScroll, false, false);
 
         GUILayout.Label($"BUILD: {buildMark}", _menuStyle);
@@ -248,6 +303,7 @@ public sealed class TrackerGuiOverlay
 
         string advancedState = _showAdvancedOverlay ? "ON" : "OFF";
 
+        // Tutaj ExitGUI jest celowe, bo rozwinięcie sekcji zmienia layout menu.
         if (GUILayout.Button($"Zaawansowane ustawienia overlayu: {advancedState}", _buttonStyle, GUILayout.Height(60)))
         {
             _showAdvancedOverlay = !_showAdvancedOverlay;
@@ -348,9 +404,13 @@ public sealed class TrackerGuiOverlay
         GUILayout.EndArea();
     }
 
+    /// <summary>
+    /// Duże przyciski przewijania menu po lewej stronie.
+    /// Przytrzymanie przycisku przewija menu płynnie.
+    /// </summary>
     private void DrawLeftScrollControls(Rect rect)
     {
-        GUI.color = new Color(0.08f, 0.08f, 0.08f, 0.95f);
+        GUI.color = _scrollBgColor;
         GUI.DrawTexture(rect, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
@@ -367,12 +427,13 @@ public sealed class TrackerGuiOverlay
         GUI.Label(labelRect, "SCROLL", _smallLabelStyle);
     }
 
+    /// <summary>
+    /// Rysuje suwak float z większym obszarem dotyku.
+    /// </summary>
     private float DrawFloatSlider(string label, float value, float min, float max)
     {
         GUILayout.Label(label, _menuStyle);
 
-        // Większy obszar dotyku. Sam wygląd slidera Unity nadal jest prosty,
-        // ale dużo łatwiej złapać go palcem.
         value = GUILayout.HorizontalSlider(
             value,
             min,
@@ -385,6 +446,10 @@ public sealed class TrackerGuiOverlay
         return value;
     }
 
+    /// <summary>
+    /// Przycisk ON/OFF dla booli.
+    /// Bez GUIUtility.ExitGUI(), bo zmiana wartości nie przebudowuje layoutu.
+    /// </summary>
     private bool DrawOnOffButton(string label, bool currentValue)
     {
         string state = currentValue ? "ON" : "OFF";
@@ -398,6 +463,10 @@ public sealed class TrackerGuiOverlay
         return currentValue;
     }
 
+    /// <summary>
+    /// Przycisk zmiany kierunku osi.
+    /// Używany dla X/Y/Z, gdzie NORMALNY/ODWRÓCONY wpływa na znak i/lub zwrot wektora.
+    /// </summary>
     private bool DrawDirectionButton(string label, bool inverted)
     {
         string state = inverted ? "ODWRÓCONY" : "NORMALNY";
@@ -411,12 +480,21 @@ public sealed class TrackerGuiOverlay
         return inverted;
     }
 
+    /// <summary>
+    /// Przycisk wyboru trybu mapowania CPU image -> ekran.
+    /// Aktywny tryb jest pokazywany w nawiasach kwadratowych.
+    /// </summary>
     private bool DrawMappingButton(string label, bool isActive)
     {
         string text = isActive ? $"[{label}]" : label;
         return GUILayout.Button(text, _buttonStyle, GUILayout.Height(58));
     }
 
+    /// <summary>
+    /// Panel sterowania pojazdem:
+    /// - DEADMAN jako przycisk trzymany palcem,
+    /// - speed limit jako procent 0-100.
+    /// </summary>
     private void DrawDriveControlPanel(AprilTagMvpTracker tracker)
     {
         bool portrait = IsPortrait();
@@ -428,8 +506,8 @@ public sealed class TrackerGuiOverlay
 
         if (portrait)
         {
-            // Stała szerokość w pionie, niezależna od tego czy menu jest otwarte.
-            // Liczona tak, żeby nie wchodziła pod menu po prawej.
+            // Stała szerokość w pionie, niezależna od otwarcia menu.
+            // Szerokość liczona tak, żeby nie wchodzić pod menu po prawej.
             Rect menuRect = GetCalibrationMenuRect();
             panelW = Mathf.Clamp(menuRect.x - margin * 2f, 285f, 430f);
         }
@@ -440,7 +518,7 @@ public sealed class TrackerGuiOverlay
 
         Rect panelRect = new Rect(margin, 25f, panelW, panelH);
 
-        GUI.color = new Color(0f, 0f, 0f, 0.75f);
+        GUI.color = _panelBgColor;
         GUI.DrawTexture(panelRect, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
@@ -451,12 +529,11 @@ public sealed class TrackerGuiOverlay
             72f
         );
 
+        // DEADMAN działa jako przycisk przytrzymywany.
+        // Jeśli palec/mysz jest wewnątrz prostokąta, deadmanPressed = true.
         tracker.deadmanPressed = IsPointerDownInside(deadmanRect);
 
-        GUI.color = tracker.deadmanPressed
-            ? new Color(0f, 0.75f, 0.15f, 0.95f)
-            : new Color(0.75f, 0f, 0f, 0.95f);
-
+        GUI.color = tracker.deadmanPressed ? _deadmanOnColor : _deadmanOffColor;
         GUI.DrawTexture(deadmanRect, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
@@ -486,6 +563,10 @@ public sealed class TrackerGuiOverlay
         tracker.speedPercent = Mathf.RoundToInt(speedSliderValue);
     }
 
+    /// <summary>
+    /// Zielony debug box z aktualną telemetrią.
+    /// Tło dopasowuje wysokość do liczby linii tekstu.
+    /// </summary>
     private void DrawDebugBox(string debugText)
     {
         bool portrait = IsPortrait();
@@ -510,15 +591,17 @@ public sealed class TrackerGuiOverlay
         }
         else
         {
-            // Liczymy od pełnej szerokości ekranu, nie od safe.width,
-            // bo inaczej safeArea znowu może wprowadzić dziwny offset.
+            // W landscape celowo używamy Screen.width, nie safe.width,
+            // żeby safeArea nie odsuwała ramki zbyt daleko od lewej krawędzi.
             width = Mathf.Min(Screen.width * 0.76f - marginXLandscapePx, 1350f);
         }
 
         width = Mathf.Max(width, 320f);
 
-        GUIContent content = new GUIContent(debugText);
-        float textHeight = _debugStyle.CalcHeight(content, width - paddingX * 2f);
+        // Bez new GUIContent(debugText) co klatkę.
+        _debugContent.text = debugText;
+
+        float textHeight = _debugStyle.CalcHeight(_debugContent, width - paddingX * 2f);
 
         float minHeight = portrait ? 285f : 260f;
         float maxHeight = safe.height * (portrait ? 0.36f : 0.42f);
@@ -526,7 +609,7 @@ public sealed class TrackerGuiOverlay
 
         float yBox = Screen.height - safe.yMin - extraBottomGapPx - height;
 
-        GUI.color = new Color(0f, 0f, 0f, 0.72f);
+        GUI.color = _debugBgColor;
         GUI.DrawTexture(new Rect(xBox, yBox, width, height), Texture2D.whiteTexture);
 
         GUI.color = Color.white;
@@ -537,32 +620,42 @@ public sealed class TrackerGuiOverlay
                 width - paddingX * 2f,
                 height - paddingY * 2f
             ),
-            debugText,
+            _debugContent,
             _debugStyle
         );
     }
 
+    /// <summary>
+    /// Sprawdza, czy aktualnie użytkownik trzyma palec/mysz wewnątrz podanego prostokąta.
+    /// Używane dla przycisku DEADMAN.
+    /// </summary>
     private bool IsPointerDownInside(Rect rect)
     {
-        bool isDown = false;
-        Vector2 pointerGuiPos = Vector2.zero;
-
         if (Input.touchCount > 0)
         {
             Touch touch = Input.GetTouch(0);
 
-            if (touch.phase != TouchPhase.Ended && touch.phase != TouchPhase.Canceled)
-            {
-                isDown = true;
-                pointerGuiPos = new Vector2(touch.position.x, Screen.height - touch.position.y);
-            }
-        }
-        else if (Input.GetMouseButton(0))
-        {
-            isDown = true;
-            pointerGuiPos = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
+            if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+                return false;
+
+            Vector2 pointerGuiPos = new Vector2(
+                touch.position.x,
+                Screen.height - touch.position.y
+            );
+
+            return rect.Contains(pointerGuiPos);
         }
 
-        return isDown && rect.Contains(pointerGuiPos);
+        if (Input.GetMouseButton(0))
+        {
+            Vector2 pointerGuiPos = new Vector2(
+                Input.mousePosition.x,
+                Screen.height - Input.mousePosition.y
+            );
+
+            return rect.Contains(pointerGuiPos);
+        }
+
+        return false;
     }
 }
