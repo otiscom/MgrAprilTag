@@ -1,10 +1,6 @@
 ﻿using AprilTag;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
@@ -32,11 +28,18 @@ public class AprilTagMvpTracker : MonoBehaviour
     public ARCameraManager camManager;
     public int referenceTagId = 0;
     public int carTagId = 1;
-
+    
     [Header("UDP Telemetria")]
-    public string pcIp = "192.168.0.19";
+    public string pcIp = "192.168.18.238";
     public int udpPort = 5005;
     public float sendRateHz = 30f;
+
+    [Header("Sterowanie pojazdem - UDP")]
+    [Range(0, 100)]
+    public int speedPercent = 20;
+
+    [Tooltip("Aktualny stan przycisku deadman. Ustawiany automatycznie przez przycisk na ekranie.")]
+    public bool deadmanPressed = false;
 
     [Header("Matematyka UDP - kierunki")]
     public bool invertX = false;
@@ -99,16 +102,17 @@ public class AprilTagMvpTracker : MonoBehaviour
     public float knownCalibrationDistance = 0.16f;
 
     private TagDetector _detector;
-    private UdpClient _udp;
-    private IPEndPoint _endPoint;
+    
     private Camera _arCamera;
+    private UdpTelemetrySender _telemetry;
+
 
     private string _debugText = "Szukam sygnału ARCore...";
     private GUIStyle _guiStyle;
     private GUIStyle _menuStyle;
     private GUIStyle _buttonStyle;
 
-    private float _lastSendTime = 0f;
+    //private float _lastSendTime = 0f;
 
     private int _currentDetectorWidth = 0;
     private int _currentDetectorHeight = 0;
@@ -147,6 +151,13 @@ public class AprilTagMvpTracker : MonoBehaviour
             tagSize = START_TAG_SIZE;
             focalScale = START_FOCAL_SCALE;
             measurementScale = START_MEASUREMENT_SCALE;
+
+            useEdgeBasedOverlay = true;
+            drawProjectedTagBorder = true;
+
+            cpuToScreenMapping = CpuToScreenMapping.Cover180;
+            mirrorCpuX = true;
+            mirrorCpuY = true;
         }
 
         if (camManager == null)
@@ -158,7 +169,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         if (_arCamera == null)
             _arCamera = Camera.main;
 
-        InitUdp();
+        _telemetry = new UdpTelemetrySender(pcIp, udpPort, sendRateHz);
         InitGui();
     }
 
@@ -176,8 +187,6 @@ public class AprilTagMvpTracker : MonoBehaviour
 
     void OnFrame(ARCameraFrameEventArgs args)
     {
-        _axisGuiLines.Clear();
-
         if (camManager == null)
         {
             _debugText = $"BUILD: {BUILD_MARK}\nBrak ARCameraManager.";
@@ -186,12 +195,14 @@ public class AprilTagMvpTracker : MonoBehaviour
 
         if (!camManager.TryAcquireLatestCpuImage(out XRCpuImage image))
         {
-            _debugText = $"BUILD: {BUILD_MARK}\nOczekiwanie na klatkę CPU...";
+            // Nie czyścimy overlayu, bo ARFoundation nie zawsze daje CPU image w każdej klatce.
+            // Dzięki temu ostatnie poprawne osie i białe obrysy nie będą migać.
             return;
         }
 
         using (image)
         {
+            _axisGuiLines.Clear();
             int w = image.width;
             int h = image.height;
 
@@ -284,6 +295,7 @@ public class AprilTagMvpTracker : MonoBehaviour
             }
 
             float fps = 1f / Mathf.Max(Time.deltaTime, 0.0001f);
+            int fpsHz = Mathf.RoundToInt(fps);
 
             if (tRef.HasValue && tCar.HasValue)
             {
@@ -317,9 +329,20 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"Dystans: {correctedDistance:F3} m  RAW: {rawDistance:F3} m\n" +
                     $"X: {x:F3}  Y: {y:F3}  Z: {zError:F3}  Yaw: {yaw:F1}°\n" +
                     $"CPU: {cpuToScreenMapping} | MX:{mirrorCpuX} MY:{mirrorCpuY}\n" +
-                    $"Zmirror X:{mirrorZScreenX} Y:{mirrorZScreenY} | Zinv:{invertZAxisDirection}";
-
-                SendTelemetry(x, y, yaw, fps);
+                    $"Zmirror X:{mirrorZScreenX} Y:{mirrorZScreenY} | Zinv:{invertZAxisDirection}\n" +
+                    $"CMD deadman:{deadmanPressed} speed:{speedPercent:F0}%";
+                
+                //SendTelemetry(x, y, yaw, fps);
+                _telemetry?.Send(
+                x,
+                y,
+                zError,
+                yaw,
+                fpsHz,
+                speedPercent,
+                deadmanPressed,
+                true
+                );
             }
             else
             {
@@ -330,6 +353,16 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"ID{carTagId}: {(tCar.HasValue ? "OK" : "SZUKAM")}\n" +
                     $"Wykryte: {foundCount} | CPU: {w}x{h}\n" +
                     $"CPU: {cpuToScreenMapping} | MX:{mirrorCpuX} MY:{mirrorCpuY}";
+                _telemetry?.Send(
+                0f,
+                0f,
+                0f,
+                0f,
+                fpsHz,
+                speedPercent,
+                deadmanPressed,
+                false
+                );
             }
         }
     }
@@ -384,7 +417,7 @@ public class AprilTagMvpTracker : MonoBehaviour
 
         AddProjectedZAxisFromPose(tag.Position, tag.Rotation, center, imgW, imgH, axisPx);
 
-        if (drawProjectedTagBorder)
+        if (drawProjectedTagBorder || useEdgeBasedOverlay)
         {
             _axisGuiLines.Add(new AxisGuiLine(c0, c1, Color.white));
             _axisGuiLines.Add(new AxisGuiLine(c1, c2, Color.white));
@@ -696,6 +729,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         return angle;
     }
 
+    /*
     void InitUdp()
     {
         try
@@ -709,7 +743,7 @@ public class AprilTagMvpTracker : MonoBehaviour
             Debug.LogError($"[UDP] Init error: {e.Message}");
         }
     }
-
+    */
     void InitGui()
     {
         int debugFont = Mathf.RoundToInt(Screen.height * 0.026f);
@@ -743,6 +777,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         };
     }
 
+    /*
     void SendTelemetry(float x, float y, float yaw, float fps)
     {
         if (_udp == null || _endPoint == null)
@@ -770,6 +805,7 @@ public class AprilTagMvpTracker : MonoBehaviour
 
         _lastSendTime = Time.time;
     }
+    */
 
     void OnGUI()
     {
@@ -794,6 +830,7 @@ public class AprilTagMvpTracker : MonoBehaviour
             DrawCalibrationMenu();
         }
 
+        DrawDriveControlPanel();
         DrawDebugBox();
     }
 
@@ -938,9 +975,77 @@ public class AprilTagMvpTracker : MonoBehaviour
         GUI.Label(new Rect(xBox + 18f, yBox + 12f, width - 36f, height - 24f), _debugText, _guiStyle);
     }
 
+    void DrawDriveControlPanel()
+    {
+        float panelW = 430f;
+        float panelH = 190f;
+
+        Rect panelRect = new Rect(35f, 25f, panelW, panelH);
+
+        GUI.color = new Color(0f, 0f, 0f, 0.75f);
+        GUI.DrawTexture(panelRect, Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        Rect deadmanRect = new Rect(panelRect.x + 20f, panelRect.y + 18f, panelW - 40f, 80f);
+
+        deadmanPressed = IsPointerDownInside(deadmanRect);
+
+        GUI.color = deadmanPressed
+            ? new Color(0f, 0.75f, 0.15f, 0.95f)
+            : new Color(0.75f, 0f, 0f, 0.95f);
+
+        GUI.DrawTexture(deadmanRect, Texture2D.whiteTexture);
+
+        GUI.color = Color.white;
+
+        GUIStyle deadmanStyle = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = 30,
+            fontStyle = FontStyle.Bold,
+            alignment = TextAnchor.MiddleCenter
+        };
+
+        GUI.Label(
+            deadmanRect,
+            deadmanPressed ? "DEADMAN ON" : "TRZYMAJ, ABY JECHAĆ",
+            deadmanStyle
+        );
+
+        Rect labelRect = new Rect(panelRect.x + 20f, panelRect.y + 112f, panelW - 40f, 30f);
+        GUI.Label(labelRect, $"Speed limit: {speedPercent} %", _menuStyle);
+
+        Rect sliderRect = new Rect(panelRect.x + 20f, panelRect.y + 150f, panelW - 40f, 30f);
+        float speedSliderValue = GUI.HorizontalSlider(sliderRect, speedPercent, 0f, 100f);
+        speedPercent = Mathf.RoundToInt(speedSliderValue);
+    }
+
+    bool IsPointerDownInside(Rect rect)
+    {
+        bool isDown = false;
+        Vector2 pointerGuiPos = Vector2.zero;
+
+        if (Input.touchCount > 0)
+        {
+            Touch touch = Input.GetTouch(0);
+
+            if (touch.phase != TouchPhase.Ended && touch.phase != TouchPhase.Canceled)
+            {
+                isDown = true;
+                pointerGuiPos = new Vector2(touch.position.x, Screen.height - touch.position.y);
+            }
+        }
+        else if (Input.GetMouseButton(0))
+        {
+            isDown = true;
+            pointerGuiPos = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
+        }
+
+        return isDown && rect.Contains(pointerGuiPos);
+    }
+
     void OnDestroy()
     {
         _detector?.Dispose();
-        _udp?.Close();
+        _telemetry?.Dispose();
     }
 }

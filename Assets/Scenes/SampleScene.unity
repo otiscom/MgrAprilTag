@@ -585,11 +585,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   camManager: {fileID: 223974230}
-  tagSize: 0.13
   referenceTagId: 0
   carTagId: 1
-  fovMode: 0
-  pcIp: 192.168.0.19
+  pcIp: 192.168.18.238
   udpPort: 5005
   sendRateHz: 30
   invertX: 0
@@ -597,6 +595,23 @@ MonoBehaviour:
   invertYaw: 0
   showAxisOverlay: 1
   axisLength: 0.08
+  useEdgeBasedOverlay: 1
+  drawProjectedTagBorder: 0
+  zSymbolThresholdPx: 7
+  zSymbolAngleThresholdDeg: 5
+  zAxisVisualScale: 1.2
+  invertZAxisDirection: 0
+  mirrorZScreenX: 0
+  mirrorZScreenY: 0
+  cpuToScreenMapping: 1
+  mirrorCpuX: 0
+  mirrorCpuY: 0
+  invertZSymbol: 0
+  tagSize: 0.13
+  focalScale: 1
+  measurementScale: 0.57
+  screenOverlayScale: 1
+  knownCalibrationDistance: 0.16
 --- !u!4 &1799114884
 Transform:
   m_ObjectHideFlags: 0
