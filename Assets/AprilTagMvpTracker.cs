@@ -28,7 +28,16 @@ public class AprilTagMvpTracker : MonoBehaviour
     public ARCameraManager camManager;
     public int referenceTagId = 0;
     public int carTagId = 1;
-    
+
+    [Header("Wydajność")]
+    [Range(5f, 60f)]
+    public float visionRateHz = 20f;
+    private float _lastVisionProcessTime = -999f;
+
+    [Tooltip("Po ilu sekundach bez świeżej klatki CPU overlay/debug uznajemy za nieaktualny.")]
+    public float staleOverlayTimeout = 0.25f;
+    private float _lastSuccessfulCpuImageTime = -999f;
+
     [Header("UDP Telemetria")]
     public string pcIp = "192.168.18.238";
     public int udpPort = 5005;
@@ -49,6 +58,9 @@ public class AprilTagMvpTracker : MonoBehaviour
     [Header("Wizualizacja diagnostyczna 2D")]
     public bool showAxisOverlay = true;
     public float axisLength = 0.05f;
+    public bool showXAxis = true;
+    public bool showYAxis = true;
+    public bool showZAxis = true;
 
     [Tooltip("REAL CORNERS = środek i X/Y z prawdziwych narożników detekcji. POSE = projekcja tag.Position.")]
     public bool useEdgeBasedOverlay = true;
@@ -108,17 +120,18 @@ public class AprilTagMvpTracker : MonoBehaviour
 
 
     private string _debugText = "Szukam sygnału ARCore...";
-    private GUIStyle _guiStyle;
-    private GUIStyle _menuStyle;
-    private GUIStyle _buttonStyle;
+    //private GUIStyle _guiStyle;
+    //private GUIStyle _menuStyle;
+    //private GUIStyle _buttonStyle;
 
     //private float _lastSendTime = 0f;
 
     private int _currentDetectorWidth = 0;
     private int _currentDetectorHeight = 0;
 
-    private bool _isMenuOpen = false;
-    private Vector2 _menuScroll = Vector2.zero;
+    //private bool _isMenuOpen = false;
+    //private Vector2 _menuScroll = Vector2.zero;
+    private TrackerGuiOverlay _guiOverlay;
 
     private float _fx;
     private float _fy;
@@ -146,6 +159,9 @@ public class AprilTagMvpTracker : MonoBehaviour
 
     void Start()
     {
+        Application.targetFrameRate = 60;
+        QualitySettings.vSyncCount = 0;
+
         if (FORCE_START_CALIBRATION)
         {
             tagSize = START_TAG_SIZE;
@@ -153,6 +169,10 @@ public class AprilTagMvpTracker : MonoBehaviour
             measurementScale = START_MEASUREMENT_SCALE;
 
             useEdgeBasedOverlay = true;
+            showAxisOverlay = true;
+            showXAxis = true;
+            showYAxis = true;
+            showZAxis = true;
             drawProjectedTagBorder = true;
 
             cpuToScreenMapping = CpuToScreenMapping.Cover180;
@@ -170,7 +190,8 @@ public class AprilTagMvpTracker : MonoBehaviour
             _arCamera = Camera.main;
 
         _telemetry = new UdpTelemetrySender(pcIp, udpPort, sendRateHz);
-        InitGui();
+        _guiOverlay = new TrackerGuiOverlay();
+        //InitGui();
     }
 
     void OnEnable()
@@ -193,15 +214,50 @@ public class AprilTagMvpTracker : MonoBehaviour
             return;
         }
 
+        if (Time.time - _lastVisionProcessTime < 1f / Mathf.Max(visionRateHz, 1f))
+        {
+            return;
+        }
+
+        _lastVisionProcessTime = Time.time;
+
         if (!camManager.TryAcquireLatestCpuImage(out XRCpuImage image))
         {
-            // Nie czyścimy overlayu, bo ARFoundation nie zawsze daje CPU image w każdej klatce.
-            // Dzięki temu ostatnie poprawne osie i białe obrysy nie będą migać.
+            // Pojedynczy brak CPU image jest normalny, więc nie czyścimy od razu.
+            // Ale jeśli nie ma świeżej klatki dłużej niż staleOverlayTimeout,
+            // to stary overlay/debug uznajemy za nieaktualny.
+            if (Time.time - _lastSuccessfulCpuImageTime > staleOverlayTimeout)
+            {
+                _axisGuiLines.Clear();
+
+                float fps = 1f / Mathf.Max(Time.deltaTime, 0.0001f);
+                int fpsHz = Mathf.RoundToInt(fps);
+
+                _debugText =
+                    $"BUILD: {BUILD_MARK}\n" +
+                    $"Brak świeżej klatki CPU...\n" +
+                    $"Ostatni obraz > {staleOverlayTimeout:F2} s temu\n" +
+                    $"CMD deadman:{deadmanPressed} speed:{speedPercent}%";
+
+                _telemetry?.Send(
+                    0f,
+                    0f,
+                    0f,
+                    0f,
+                    fpsHz,
+                    speedPercent,
+                    deadmanPressed,
+                    false
+                );
+            }
+
             return;
         }
 
         using (image)
         {
+            _lastSuccessfulCpuImageTime = Time.time;
+
             _axisGuiLines.Clear();
             int w = image.width;
             int h = image.height;
@@ -310,7 +366,7 @@ public class AprilTagMvpTracker : MonoBehaviour
 
                 float x = invertX ? -correctedPos.x : correctedPos.x;
                 float y = invertY ? -correctedPos.y : correctedPos.y;
-                float zError = correctedPos.z;
+                float zError = invertZAxisDirection ? -correctedPos.z : correctedPos.z;
 
                 float yaw = Mathf.Atan2(rel.m10, rel.m00) * Mathf.Rad2Deg;
                 if (invertYaw)
@@ -330,7 +386,7 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"X: {x:F3}  Y: {y:F3}  Z: {zError:F3}  Yaw: {yaw:F1}°\n" +
                     $"CPU: {cpuToScreenMapping} | MX:{mirrorCpuX} MY:{mirrorCpuY}\n" +
                     $"Zmirror X:{mirrorZScreenX} Y:{mirrorZScreenY} | Zinv:{invertZAxisDirection}\n" +
-                    $"CMD deadman:{deadmanPressed} speed:{speedPercent:F0}%";
+                    $"CMD deadman:{deadmanPressed} speed:{speedPercent}%";
                 
                 //SendTelemetry(x, y, yaw, fps);
                 _telemetry?.Send(
@@ -366,29 +422,40 @@ public class AprilTagMvpTracker : MonoBehaviour
             }
         }
     }
-
     void AddAxes2D(Vector3 rawPos, Quaternion rawRot, int imgW, int imgH)
     {
         Vector3 origin = new Vector3(rawPos.x, -rawPos.y, rawPos.z);
         Quaternion rot = GetOverlayRotation(rawRot);
 
-        Vector3 xEnd3D = origin + rot * Vector3.right * axisLength;
-        Vector3 yEnd3D = origin + rot * Vector3.up * axisLength;
-        Vector3 zEnd3D = origin + rot * Vector3.forward * axisLength;
+        Vector3 xAxis3D = rot * Vector3.right * axisLength;
+        Vector3 yAxis3D = rot * Vector3.up * axisLength;
+        Vector3 zAxis3D = rot * Vector3.forward * axisLength;
+
+        if (invertX)
+            xAxis3D = -xAxis3D;
+
+        if (invertY)
+            yAxis3D = -yAxis3D;
+
+        if (invertZAxisDirection)
+            zAxis3D = -zAxis3D;
+
+        Vector3 xEnd3D = origin + xAxis3D;
+        Vector3 yEnd3D = origin + yAxis3D;
+        Vector3 zEnd3D = origin + zAxis3D;
 
         if (!ProjectCameraPointToScreen(origin, imgW, imgH, out Vector2 center))
             return;
 
-        if (ProjectCameraPointToScreen(xEnd3D, imgW, imgH, out Vector2 xEnd))
+        if (showXAxis && ProjectCameraPointToScreen(xEnd3D, imgW, imgH, out Vector2 xEnd))
             _axisGuiLines.Add(new AxisGuiLine(center, xEnd, Color.red));
 
-        if (ProjectCameraPointToScreen(yEnd3D, imgW, imgH, out Vector2 yEnd))
+        if (showYAxis && ProjectCameraPointToScreen(yEnd3D, imgW, imgH, out Vector2 yEnd))
             _axisGuiLines.Add(new AxisGuiLine(center, yEnd, Color.green));
 
-        if (ProjectCameraPointToScreen(zEnd3D, imgW, imgH, out Vector2 zEnd))
+        if (showZAxis && ProjectCameraPointToScreen(zEnd3D, imgW, imgH, out Vector2 zEnd))
             AddProjectedZAxisOrSymbol(center, center, zEnd, rawRot, 24f);
     }
-
     void AddAxesFromRealCorners2D(TagPose tag, int imgW, int imgH)
     {
         Vector2 c0 = CpuImagePixelToScreen(tag.Corner0.x, tag.Corner0.y, imgW, imgH);
@@ -399,7 +466,10 @@ public class AprilTagMvpTracker : MonoBehaviour
         Vector2 center = CpuImagePixelToScreen(tag.Center.x, tag.Center.y, imgW, imgH);
 
         Vector2 xDir = ((c1 - c0) + (c2 - c3)) * 0.5f;
-        Vector2 yDir = ((c0 - c3) + (c1 - c2)) * 0.5f;
+
+        // Y było odwrócone względem układu używanego przez pose/UDP.
+        // To jest dokładnie ta sama oś, ale z przeciwnym zwrotem.
+        Vector2 yDir = ((c3 - c0) + (c2 - c1)) * 0.5f;
 
         float xLen = xDir.magnitude;
         float yLen = yDir.magnitude;
@@ -410,14 +480,24 @@ public class AprilTagMvpTracker : MonoBehaviour
         xDir /= xLen;
         yDir /= yLen;
 
+        if (invertX)
+            xDir = -xDir;
+
+        if (invertY)
+            yDir = -yDir;
+
         float axisPx = Mathf.Min(xLen, yLen) * 0.45f;
 
-        _axisGuiLines.Add(new AxisGuiLine(center, center + xDir * axisPx, Color.red));
-        _axisGuiLines.Add(new AxisGuiLine(center, center + yDir * axisPx, Color.green));
+        if (showXAxis)
+            _axisGuiLines.Add(new AxisGuiLine(center, center + xDir * axisPx, Color.red));
 
-        AddProjectedZAxisFromPose(tag.Position, tag.Rotation, center, imgW, imgH, axisPx);
+        if (showYAxis)
+            _axisGuiLines.Add(new AxisGuiLine(center, center + yDir * axisPx, Color.green));
 
-        if (drawProjectedTagBorder || useEdgeBasedOverlay)
+        if (showZAxis)
+            AddProjectedZAxisFromPose(tag.Position, tag.Rotation, center, imgW, imgH, axisPx);
+
+        if (drawProjectedTagBorder)
         {
             _axisGuiLines.Add(new AxisGuiLine(c0, c1, Color.white));
             _axisGuiLines.Add(new AxisGuiLine(c1, c2, Color.white));
@@ -425,6 +505,7 @@ public class AprilTagMvpTracker : MonoBehaviour
             _axisGuiLines.Add(new AxisGuiLine(c3, c0, Color.white));
         }
     }
+
 
     void AddProjectedZAxisFromPose(
         Vector3 rawPos,
@@ -743,7 +824,7 @@ public class AprilTagMvpTracker : MonoBehaviour
             Debug.LogError($"[UDP] Init error: {e.Message}");
         }
     }
-    */
+    
     void InitGui()
     {
         int debugFont = Mathf.RoundToInt(Screen.height * 0.026f);
@@ -777,6 +858,9 @@ public class AprilTagMvpTracker : MonoBehaviour
         };
     }
 
+
+    */
+
     /*
     void SendTelemetry(float x, float y, float yaw, float fps)
     {
@@ -809,31 +893,20 @@ public class AprilTagMvpTracker : MonoBehaviour
 
     void OnGUI()
     {
-        if (_guiStyle == null || _menuStyle == null || _buttonStyle == null)
-            InitGui();
-
         foreach (var line in _axisGuiLines)
         {
             DrawGuiLine(line.a, line.b, line.color, 6f);
         }
 
-        Rect buttonRect = new Rect(Screen.width - 270f, 25f, 245f, 80f);
-
-        if (GUI.Button(buttonRect, _isMenuOpen ? "ZAMKNIJ" : "KALIBRACJA"))
-        {
-            _isMenuOpen = !_isMenuOpen;
-            GUIUtility.ExitGUI();
-        }
-
-        if (_isMenuOpen)
-        {
-            DrawCalibrationMenu();
-        }
-
-        DrawDriveControlPanel();
-        DrawDebugBox();
+        _guiOverlay?.Draw(
+            this,
+            BUILD_MARK,
+            _debugText,
+            _lastRawDistance,
+            _lastCorrectedDistance
+        );
     }
-
+    /*
     void DrawCalibrationMenu()
     {
         float menuW = Mathf.Min(700f, Screen.width * 0.48f);
@@ -960,6 +1033,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         GUILayout.EndScrollView();
         GUILayout.EndArea();
     }
+    
 
     void DrawDebugBox()
     {
@@ -1018,6 +1092,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         float speedSliderValue = GUI.HorizontalSlider(sliderRect, speedPercent, 0f, 100f);
         speedPercent = Mathf.RoundToInt(speedSliderValue);
     }
+    
 
     bool IsPointerDownInside(Rect rect)
     {
@@ -1042,6 +1117,7 @@ public class AprilTagMvpTracker : MonoBehaviour
 
         return isDown && rect.Contains(pointerGuiPos);
     }
+    */
 
     void OnDestroy()
     {
