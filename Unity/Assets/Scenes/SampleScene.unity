@@ -587,14 +587,21 @@ MonoBehaviour:
   camManager: {fileID: 223974230}
   referenceTagId: 0
   carTagId: 1
-  pcIp: 192.168.18.238
+  visionRateHz: 45
+  staleOverlayTimeout: 0.25
+  pcIp: 10.171.128.230
   udpPort: 5005
   sendRateHz: 30
+  speedPercent: 20
+  deadmanPressed: 0
   invertX: 0
   invertY: 1
   invertYaw: 0
   showAxisOverlay: 1
   axisLength: 0.08
+  showXAxis: 1
+  showYAxis: 1
+  showZAxis: 1
   useEdgeBasedOverlay: 1
   drawProjectedTagBorder: 0
   zSymbolThresholdPx: 7
