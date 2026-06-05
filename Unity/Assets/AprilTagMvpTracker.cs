@@ -67,7 +67,7 @@ public class AprilTagMvpTracker : MonoBehaviour
     private float _lastSuccessfulCpuImageTime = -999f;
 
     [Header("UDP Telemetria")]
-    public string pcIp = "192.168.18.238";
+    public string pcIp = "10.171.128.230";
     public int udpPort = 5005;
     public float sendRateHz = 30f;
 
