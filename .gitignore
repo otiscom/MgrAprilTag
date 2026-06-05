@@ -1,37 +1,57 @@
-@"
-[Ll]ibrary/
-[Tt]emp/
-[Oo]bj/
-[Bb]uild/
-[Bb]uilds/
-[Ll]ogs/
-[Uu]ser[Ss]ettings/
+@'
+# Unity generated files
+Unity/Library/
+Unity/Temp/
+Unity/Obj/
+Unity/obj/
+Unity/Logs/
+Unity/UserSettings/
+Unity/.vs/
+Unity/*_BurstDebugInformation_DoNotShip/
 
-.vs/
-.vscode/
-.idea/
-.plastic/
+# Unity generated project files
+Unity/*.csproj
+Unity/*.sln
+Unity/*.user
+Unity/*.userprefs
+Unity/*.pidb
+Unity/*.booproj
+Unity/*.svd
+Unity/*.pdb
+Unity/*.mdb
+Unity/*.opendb
+Unity/*.VC.db
+Unity/*.vsidx
+Unity/.vsconfig
+Unity/ignore.conf
 
-*.csproj
-*.sln
-*.user
-*.userprefs
-*.pidb
-*.booproj
-*.svd
-*.pdb
-*.mdb
-*.opendb
-*.VC.db
-*.vsidx
+# Unity builds / exports
+Unity/*.apk
+Unity/*.aab
+Unity/Build/
+Unity/Builds/
 
-*.apk
-*.aab
+# MATLAB / Simulink
+*.asv
+*.autosave
+*.slxc
+slprj/
+codegen/
+*_ert_rtw/
+*_grt_rtw/
+*.mex*
+*.mexa64
+*.mexw64
+html/
 
+# OS
 .DS_Store
 Thumbs.db
-"@ | Set-Content -Encoding UTF8 .gitignore
-*_BurstDebugInformation_DoNotShip/
-*.apk
-.vsconfig
-ignore.conf
+'@ | Set-Content -Encoding UTF8 .gitignore
+# IDE folders anywhere
+**/.idea/
+**/.vscode/
+**/.vs/
+
+# Plastic SCM / Unity Version Control
+**/.plastic/
