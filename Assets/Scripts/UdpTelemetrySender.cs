@@ -9,7 +9,7 @@ using UnityEngine;
 ///
 /// Ramka UDP ma format tekstowy key:value:
 ///
-/// AT1;seq:12;t:4.125;valid:1;deadman:0;move_en:0;speed_pct:20;x_m:-0.1360;y_m:-0.2620;z_m:0.0150;yaw_deg:119.10;fps_hz:30;crc:A4EF
+/// AT1;seq:7731;t:519.706;valid:1;deadman:1;move_en:1;speed_pct:89;x_m:0.1234;y_m:-0.0521;z_m:0.0000;yaw_deg:184.25;fps_hz:20;crc:XXXX
 ///
 /// Znaczenie pól:
 /// AT1        - typ i wersja ramki: AprilTag telemetry v1
@@ -22,7 +22,7 @@ using UnityEngine;
 /// x_m        - pozycja X wzglêdem bazy [m]
 /// y_m        - pozycja Y wzglêdem bazy [m]
 /// z_m        - ró¿nica wysokoœci / diagnostyczny b³¹d Z [m]
-/// yaw_deg    - obrót pojazdu wzglêdem bazy [deg]
+/// yaw_deg    - ci¹g³y obrót pojazdu wzglêdem bazy [deg], po unwrap; u¿ywany przez regulator
 /// fps_hz     - FPS aplikacji, tylko diagnostyka [Hz]
 /// crc        - CRC16-CCITT-FALSE policzone z tekstu przed polem ;crc:
 /// </summary>

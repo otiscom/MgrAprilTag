@@ -163,7 +163,16 @@ public class AprilTagMvpTracker : MonoBehaviour
     private float _lastRawDistance = 0f;
     private float _lastCorrectedDistance = 0f;
 
-    
+    // Historia kąta yaw używana do unwrapu.
+    // Problem wynika z reprezentacji kąta na okręgu:
+    // +180° i -180° opisują prawie ten sam kierunek,
+    // ale numerycznie wyglądają jak skok około 360°.
+    // Dlatego do regulatora wysyłamy yaw ciągły.
+    private bool _yawHistoryValid = false;
+    private float _prevYawWrappedDeg = 0f;
+    private float _yawUnwrappedDeg = 0f;
+
+
     void Start()
     {
         Application.targetFrameRate = 60;
@@ -241,6 +250,7 @@ public class AprilTagMvpTracker : MonoBehaviour
             if (Time.time - _lastSuccessfulCpuImageTime > staleOverlayTimeout)
             {
                 _axisOverlay?.Clear();
+                MarkYawInvalid();
 
                 float fps = 1f / Mathf.Max(Time.deltaTime, 0.0001f);
                 int fpsHz = Mathf.RoundToInt(fps);
@@ -386,11 +396,19 @@ public class AprilTagMvpTracker : MonoBehaviour
                 float y = invertY ? -correctedPos.y : correctedPos.y;
                 float zError = invertZAxisDirection ? -correctedPos.z : correctedPos.z;
 
-                float yaw = Mathf.Atan2(rel.m10, rel.m00) * Mathf.Rad2Deg;
-                if (invertYaw)
-                    yaw = -yaw;
+                float yawWrappedDeg = Mathf.Atan2(rel.m10, rel.m00) * Mathf.Rad2Deg;
 
-                yaw = NormalizeAngle(yaw);
+                if (invertYaw)
+                    yawWrappedDeg = -yawWrappedDeg;
+
+                // yaw_wrapped_deg zostaje w zakresie -180..180.
+                // Jest dobry do debugowania, ale nie do prostego różniczkowania,
+                // bo przy przejściu przez ±180° robi skok numeryczny.
+                yawWrappedDeg = NormalizeAngle(yawWrappedDeg);
+
+                // yaw_unwrapped_deg jest kątem ciągłym bez skoku przez ±180°.
+                // To tę wartość wysyłamy w UDP jako yaw_deg do regulatora.
+                float yawUnwrappedDeg = UpdateYawUnwrap(yawWrappedDeg);
 
                 float correctedDistance = Mathf.Sqrt(x * x + y * y);
 
@@ -401,24 +419,26 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"BUILD: {BUILD_MARK}\n" +
                     $"ID{referenceTagId}: OK | ID{carTagId}: OK | FPS: {fps:F1}\n" +
                     $"Dystans: {correctedDistance:F3} m  RAW: {rawDistance:F3} m\n" +
-                    $"X: {x:F3}  Y: {y:F3}  Z: {zError:F3}  Yaw: {yaw:F1}°\n" +
+                    $"X: {x:F3}  Y: {y:F3}  Z: {zError:F3}\n" +
+                    $"Yaw wrapped: {yawWrappedDeg:F1}° | unwrap: {yawUnwrappedDeg:F1}°\n" +
                     $"CPU: {cpuToScreenMapping} | MX:{mirrorCpuX} MY:{mirrorCpuY}\n" +
                     $"Zmirror X:{mirrorZScreenX} Y:{mirrorZScreenY} | Zinv:{invertZAxisDirection}\n" +
                     $"CMD deadman:{deadmanPressed} speed:{speedPercent}%";
-                
+
                 _telemetry?.Send(
-                x,
-                y,
-                zError,
-                yaw,
-                fpsHz,
-                speedPercent,
-                deadmanPressed,
-                true
+                    x,
+                    y,
+                    zError,
+                    yawUnwrappedDeg,
+                    fpsHz,
+                    speedPercent,
+                    deadmanPressed,
+                    true
                 );
             }
             else
             {
+                MarkYawInvalid();
                 _debugText =
                     $"BUILD: {BUILD_MARK}\n" +
                     $"Szukam tagów...\n" +
@@ -449,6 +469,40 @@ public class AprilTagMvpTracker : MonoBehaviour
             angle += 360f;
 
         return angle;
+    }
+
+    float UpdateYawUnwrap(float yawWrappedDeg)
+    {
+        // Pierwszy poprawny pomiar po starcie albo po utracie valid.
+        // Nie dodajemy wtedy żadnej różnicy kąta, bo nie mamy poprzedniego
+        // wiarygodnego pomiaru do porównania.
+        if (!_yawHistoryValid)
+        {
+            _prevYawWrappedDeg = yawWrappedDeg;
+            _yawUnwrappedDeg = yawWrappedDeg;
+            _yawHistoryValid = true;
+
+            return _yawUnwrappedDeg;
+        }
+
+        // Mathf.DeltaAngle zwraca najmniejszą różnicę kątową.
+        // Przykład:
+        // prev = +179°, current = -179° -> delta = +2°, a nie -358°.
+        float deltaYaw = Mathf.DeltaAngle(_prevYawWrappedDeg, yawWrappedDeg);
+
+        _yawUnwrappedDeg += deltaYaw;
+        _prevYawWrappedDeg = yawWrappedDeg;
+
+        return _yawUnwrappedDeg;
+    }
+
+    void MarkYawInvalid()
+    {
+        // Gdy valid == false, nie aktualizujemy historii yaw.
+        // Nie traktujemy yaw=0 z ramki invalid jako prawdziwego pomiaru.
+        // Po ponownym odzyskaniu valid pierwszy poprawny pomiar tylko
+        // zainicjalizuje historię, bez doliczania skoku przez przerwę.
+        _yawHistoryValid = false;
     }
 
     void OnGUI()
