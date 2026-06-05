@@ -100,3 +100,107 @@ Tsim = 15;             % czas symulacji [s]
 
 rad2deg_gain = 180/pi;
 deg2rad_gain = pi/180;
+
+% =========================================================
+%  03 - Cascade PID Circle Controller
+%  Zewnętrzny PID promienia + wewnętrzny PID psi
+% =========================================================
+%
+% Łańcuch fizyczny modelu pojazdu:
+%
+%   delta -> r -> psi -> X,Y -> R_meas
+%
+% gdzie:
+%   delta - kąt skrętu kół [rad]
+%   r     - yaw rate = dpsi/dt [rad/s]
+%   psi   - orientacja pojazdu / yaw [rad]
+%   X,Y   - pozycja globalna [m]
+%   R_meas - odległość od środka okręgu [m]
+%
+% Dlatego pętla promienia nie wystawia bezpośrednio delta.
+% Pętla promienia wystawia korektę orientacji psi_offset.
+% Dopiero pętla psi wystawia korektę skrętu delta_corr.
+
+% =========================
+% PID promienia
+% =========================
+%
+% e_R = R_ref - R_meas
+%
+% Dla zachowania klasycznego uchybu e_R zostaje do wykresów.
+% Do PID promienia podajemy:
+%
+%   e_R_pid = -circle_dir * e_R
+%
+% dzięki temu:
+% - gdy auto jest za blisko środka, regulator odchyla psi na zewnątrz,
+% - gdy auto jest za daleko, regulator odchyla psi do środka.
+
+Kp_radius_pid = 0.6;        % [rad/m]
+Ki_radius_pid = 0.0;        % [rad/(m*s)] startowo 0
+Kd_radius_pid = 0.0;        % [rad*s/m] startowo 0
+
+psi_offset_max_rad = deg2rad(30);
+
+% =========================
+% PID orientacji psi
+% =========================
+%
+% e_psi = wrapToPi(psi_ref_cmd - psi)
+%
+% Wyjście PID_Psi to korekta skrętu:
+%
+%   e_psi -> PID_Psi -> delta_corr_rad
+
+Kp_psi_pid = 1.0;           % [rad_delta/rad_psi]
+Ki_psi_pid = 0.0;           % startowo 0
+Kd_psi_pid = 0.03;          % lekkie tłumienie, można dać 0 jeśli szarpie
+
+delta_corr_max_rad = deg2rad(20);
+
+% =========================================================
+%  04 - Disturbances / Vision Emulator
+% =========================================================
+
+% =========================
+% Zakłócenia pozycji z Vision
+% =========================
+
+dist_x_step_time_s = 5.0;
+dist_x_step_amp_m  = 0.10;          % sztuczny błąd pomiaru X [m]
+
+dist_y_step_time_s = 7.0;
+dist_y_step_amp_m  = -0.08;         % sztuczny błąd pomiaru Y [m]
+
+% =========================
+% Zakłócenie orientacji psi
+% =========================
+
+dist_psi_step_time_s = 9.0;
+dist_psi_step_amp_rad = deg2rad(10);    % sztuczny błąd yaw/psi [rad]
+
+% =========================
+% Szum pomiarowy
+% =========================
+
+noise_x_std_m = 0.005;              % 5 mm
+noise_y_std_m = 0.005;              % 5 mm
+noise_psi_std_rad = deg2rad(0.5);   % 0.5 deg
+
+% =========================
+% Vision sample time
+% =========================
+
+Ts_vision = 0.05;                   % 20 Hz
+
+% =========================
+% Opóźnienie pomiaru
+% =========================
+
+vision_delay_s = 0.05;              % 50 ms
+
+% =========================
+% Opóźnienie serwa / aktuatora skrętu
+% =========================
+
+servo_tau_s = 0.08;                 % stała czasowa serwa [s]
