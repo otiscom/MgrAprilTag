@@ -397,3 +397,26 @@ delta_corr_max_rad = deg2rad(8);
 % Jeżeli regulator jest zbyt powolny, ale stabilny:
 %   najpierw zwiększ Kp_radius_pid,
 %   dopiero potem ewentualnie Kp_psi_pid.
+
+
+%% =========================================================
+%  ESP32 UDP / UART bridge configuration
+% =========================================================
+
+UDP_BASE_PORT = 5005;
+
+UDP_PORT_A = UDP_BASE_PORT;       % default: 5005
+UDP_PORT_B = UDP_BASE_PORT + 1;   % default: 5006, optional second port
+
+UDP_PAYLOAD_SIZE = 64;            % WiFi UDP Receive limit [bytes]
+UDP_SAMPLE_TIME = 0.01;           % 100 Hz polling, margin for 2 phones at ~20 Hz
+
+ATB1_FRAME_SIZE = 42;             % Unity -> ESP32 binary frame [bytes]
+
+MAX_SOURCE_ID = 4;                % prepared for 1..4 phones
+ACTIVE_UDP_PORTS = 2;             % PortA and PortB are active
+
+UART_BAUDRATE = 230400;
+UART_FRAME_SIZE = 38;             % ESP32 -> STM32, planned
+UART_SERIAL_PORT = 2;     % 0 = USB/debug, 1/2 = hardware UART, zależnie od płytki
+UART_BAUDRATE = 230400;
