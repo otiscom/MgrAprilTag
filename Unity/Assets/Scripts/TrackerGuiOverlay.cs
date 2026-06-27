@@ -33,6 +33,16 @@ public sealed class TrackerGuiOverlay
 
     private Vector2 _menuScroll = Vector2.zero;
 
+    private int _styleScreenWidth = -1;
+    private int _styleScreenHeight = -1;
+
+    private GUIStyle _topButtonStyle;
+    private GUIStyle _deadmanVerticalStyle;
+
+    private GUIStyle _textFieldStyle;
+    private GUIStyle _sliderStyle;
+    private GUIStyle _sliderThumbStyle;
+
     private bool IsPortrait()
     {
         return Screen.height > Screen.width;
@@ -56,41 +66,120 @@ public sealed class TrackerGuiOverlay
         string debugText,
         float lastRawDistance,
         float lastCorrectedDistance)
-    {
-        EnsureStyles();
-
-        DrawCalibrationButton();
-
-        if (_isMenuOpen)
         {
-            DrawCalibrationMenu(
-                tracker,
-                buildMark,
-                lastRawDistance,
-                lastCorrectedDistance
-            );
-        }
+            EnsureStyles();
 
-        DrawDriveControlPanel(tracker);
-        DrawDebugBox(debugText);
+            DrawCalibrationButton();
+
+            if (_isMenuOpen)
+            {
+                DrawCalibrationMenu(
+                    tracker,
+                    buildMark,
+                    lastRawDistance,
+                    lastCorrectedDistance
+                );
+            }
+
+            DrawDriveControlPanel(tracker);
+
+            Rect debugRect = GetDebugBoxRect(debugText);
+
+            DrawUdpQuickSwitch(tracker, debugRect);
+            DrawMeasurementStatusBox(tracker, debugRect);
+            DrawDebugBox(debugText, debugRect);
     }
 
+
+    private void DrawUdpQuickSwitch(AprilTagMvpTracker tracker, Rect debugRect)
+    {
+        float gap = 8f;
+        float w = 210f;
+        float h = 50f;
+
+        float x = debugRect.x;
+        float y = debugRect.y - h - gap;
+
+        if (tracker.ShowMeasurementOverlay)
+            y -= 58f + gap;
+
+        Rect rect = new Rect(x, y, w, h);
+
+        GUI.color = tracker.udpOutputEnabled
+            ? new Color(0f, 0.45f, 0.10f, 0.55f)
+            : new Color(0.55f, 0f, 0f, 0.55f);
+
+        GUI.DrawTexture(rect, Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        string text = tracker.udpOutputEnabled ? "UDP ON" : "UDP OFF";
+
+        if (GUI.Button(rect, text, _buttonStyle))
+        {
+            tracker.udpOutputEnabled = !tracker.udpOutputEnabled;
+            tracker.SaveUserSettings();
+            GUIUtility.ExitGUI();
+        }
+    }
+
+    private void DrawMeasurementStatusBox(AprilTagMvpTracker tracker, Rect debugRect)
+    {
+        if (!tracker.ShowMeasurementOverlay)
+            return;
+
+        float gap = 8f;
+        float w = Mathf.Min(360f, debugRect.width);
+        float h = 52f;
+
+        float x = debugRect.x;
+        float y = debugRect.y - h - gap;
+
+        Rect rect = new Rect(x, y, w, h);
+
+        GUI.color = new Color(0f, 0f, 0f, 0.65f);
+        GUI.DrawTexture(rect, Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        GUI.Label(
+            new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, rect.height - 16f),
+            tracker.MeasurementOverlayText,
+            _menuStyle
+        );
+    }
     private void EnsureStyles()
     {
-        if (_debugStyle != null &&
-            _menuStyle != null &&
-            _buttonStyle != null &&
-            _deadmanStyle != null &&
-            _smallLabelStyle != null)
+    if (_debugStyle != null &&
+        _menuStyle != null &&
+        _buttonStyle != null &&
+        _deadmanStyle != null &&
+        _smallLabelStyle != null &&
+        _topButtonStyle != null &&
+        _deadmanVerticalStyle != null &&
+        _textFieldStyle != null &&
+        _sliderStyle != null &&
+        _sliderThumbStyle != null &&
+        _styleScreenWidth == Screen.width &&
+        _styleScreenHeight == Screen.height)
         {
             return;
         }
 
-        int debugFont = Mathf.RoundToInt(Screen.height * (IsPortrait() ? 0.018f : 0.022f));
-        int menuFont = Mathf.RoundToInt(Screen.height * 0.021f);
+        _styleScreenWidth = Screen.width;
+        _styleScreenHeight = Screen.height;
 
-        debugFont = Mathf.Clamp(debugFont, 18, 28);
-        menuFont = Mathf.Clamp(menuFont, 18, 26);
+        bool portrait = IsPortrait();
+
+        int debugFont = Mathf.RoundToInt(Screen.height * (portrait ? 0.018f : 0.023f));
+        int menuFont = Mathf.RoundToInt(Screen.height * (portrait ? 0.020f : 0.022f));
+        int buttonFont = Mathf.RoundToInt(Screen.height * (portrait ? 0.020f : 0.022f));
+        int topButtonFont = Mathf.RoundToInt(Screen.height * (portrait ? 0.022f : 0.024f));
+        int deadmanFont = Mathf.RoundToInt(Screen.height * (portrait ? 0.028f : 0.030f));
+
+        debugFont = Mathf.Clamp(debugFont, 18, 34);
+        menuFont = Mathf.Clamp(menuFont, 18, 30);
+        buttonFont = Mathf.Clamp(buttonFont, 18, 30);
+        topButtonFont = Mathf.Clamp(topButtonFont, 20, 32);
+        deadmanFont = Mathf.Clamp(deadmanFont, 24, 42);
 
         _debugStyle = new GUIStyle
         {
@@ -101,14 +190,17 @@ public sealed class TrackerGuiOverlay
             clipping = TextClipping.Clip
         };
         _debugStyle.normal.textColor = Color.green;
+        _debugStyle.padding = new RectOffset(6, 6, 6, 6);
 
         _menuStyle = new GUIStyle
         {
             fontSize = menuFont,
             fontStyle = FontStyle.Normal,
-            wordWrap = true
+            wordWrap = true,
+            clipping = TextClipping.Clip
         };
         _menuStyle.normal.textColor = Color.white;
+        _menuStyle.padding = new RectOffset(6, 6, 4, 4);
 
         _smallLabelStyle = new GUIStyle(_menuStyle)
         {
@@ -118,24 +210,82 @@ public sealed class TrackerGuiOverlay
 
         _buttonStyle = new GUIStyle(GUI.skin.button)
         {
-            fontSize = menuFont,
+            fontSize = buttonFont,
             fontStyle = FontStyle.Bold,
-            wordWrap = true
+            wordWrap = true,
+            alignment = TextAnchor.MiddleCenter,
+            clipping = TextClipping.Clip,
+            padding = new RectOffset(16, 16, 10, 10)
+        };
+
+        _topButtonStyle = new GUIStyle(GUI.skin.button)
+        {
+            fontSize = topButtonFont,
+            fontStyle = FontStyle.Bold,
+            wordWrap = true,
+            alignment = TextAnchor.MiddleCenter,
+            clipping = TextClipping.Clip,
+            padding = new RectOffset(16, 16, 10, 10)
         };
 
         _deadmanStyle = new GUIStyle(GUI.skin.label)
         {
-            fontSize = 30,
+            fontSize = deadmanFont,
             fontStyle = FontStyle.Bold,
-            alignment = TextAnchor.MiddleCenter
+            alignment = TextAnchor.MiddleCenter,
+            wordWrap = true,
+            clipping = TextClipping.Clip,
+            padding = new RectOffset(22, 22, 8, 8)
+        };
+        _deadmanStyle.normal.textColor = Color.white;
+
+        _deadmanVerticalStyle = new GUIStyle(_deadmanStyle)
+        {
+            fontSize = Mathf.Max(22, deadmanFont - 2),
+            wordWrap = false,
+            alignment = TextAnchor.MiddleCenter,
+            clipping = TextClipping.Overflow,
+            padding = new RectOffset(12, 12, 8, 8)
+        };
+        _textFieldStyle = new GUIStyle(GUI.skin.textField)
+        {
+            fontSize = buttonFont,
+            fontStyle = FontStyle.Normal,
+            alignment = TextAnchor.MiddleLeft,
+            clipping = TextClipping.Clip,
+            padding = new RectOffset(14, 14, 8, 8)
+        };
+
+        _sliderStyle = new GUIStyle(GUI.skin.horizontalSlider)
+        {
+            fixedHeight = 16f,
+            margin = new RectOffset(8, 8, 16, 16),
+            padding = new RectOffset(0, 0, 0, 0)
+        };
+
+        _sliderThumbStyle = new GUIStyle(GUI.skin.horizontalSliderThumb)
+        {
+            fixedWidth = portrait ? 44f : 38f,
+            fixedHeight = portrait ? 44f : 38f
         };
     }
 
+
     private void DrawCalibrationButton()
     {
-        Rect buttonRect = new Rect(Screen.width - 270f, 25f, 245f, 80f);
+        Rect safe = Screen.safeArea;
 
-        if (GUI.Button(buttonRect, _isMenuOpen ? "ZAMKNIJ" : "KALIBRACJA"))
+        float w = IsPortrait() ? 230f : 245f;
+        float h = IsPortrait() ? 66f : 80f;
+
+        Rect buttonRect = new Rect(
+            safe.xMax - w - 18f,
+            safe.yMin + 18f,
+            w,
+            h
+        );
+
+        if (GUI.Button(buttonRect, _isMenuOpen ? "ZAMKNIJ" : "KALIBRACJA", _topButtonStyle))
         {
             _isMenuOpen = !_isMenuOpen;
             GUIUtility.ExitGUI();
@@ -219,7 +369,7 @@ public sealed class TrackerGuiOverlay
         GUILayout.Label($"RAW: {lastRawDistance:F3} m", _menuStyle);
         GUILayout.Label($"Po korekcie: {lastCorrectedDistance:F3} m", _menuStyle);
 
-        if (GUILayout.Button("Ustaw scale = znany dystans / RAW", _buttonStyle, GUILayout.Height(62)))
+        if (GUILayout.Button("Ustaw scale = znany dystans / RAW", _buttonStyle, GUILayout.Height(80)))
         {
             if (lastRawDistance > 0.001f)
                 tracker.measurementScale = tracker.knownCalibrationDistance / lastRawDistance;
@@ -267,7 +417,7 @@ public sealed class TrackerGuiOverlay
 
         string advancedState = _showAdvancedOverlay ? "ON" : "OFF";
 
-        if (GUILayout.Button($"Zaawansowane ustawienia overlayu: {advancedState}", _buttonStyle, GUILayout.Height(60)))
+        if (GUILayout.Button($"Zaawansowane ustawienia overlayu: {advancedState}", _buttonStyle, GUILayout.Height(80)))
         {
             _showAdvancedOverlay = !_showAdvancedOverlay;
             GUIUtility.ExitGUI();
@@ -397,7 +547,7 @@ public sealed class TrackerGuiOverlay
 
         GUILayout.Label("Device presets:", _menuStyle);
 
-        if (GUILayout.Button("Phone 1 Operator / Port 5005", _buttonStyle, GUILayout.Height(54)))
+        if (GUILayout.Button("Phone 1 Operator / Port 5005", _buttonStyle, GUILayout.Height(80)))
         {
             tracker.sourceId = 1;
             tracker.targetPort = 5005;
@@ -407,7 +557,7 @@ public sealed class TrackerGuiOverlay
             GUIUtility.ExitGUI();
         }
 
-        if (GUILayout.Button("Phone 2 Observer / Same Port 5005", _buttonStyle, GUILayout.Height(54)))
+        if (GUILayout.Button("Phone 2 Observer / Same Port 5005", _buttonStyle, GUILayout.Height(80)))
         {
             tracker.sourceId = 2;
             tracker.targetPort = 5005;
@@ -417,7 +567,7 @@ public sealed class TrackerGuiOverlay
             GUIUtility.ExitGUI();
         }
 
-        if (GUILayout.Button("Phone 2 Observer / Split Port 5006", _buttonStyle, GUILayout.Height(54)))
+        if (GUILayout.Button("Phone 2 Observer / Split Port 5006", _buttonStyle, GUILayout.Height(80)))
         {
             tracker.sourceId = 2;
             tracker.targetPort = 5006;
@@ -427,7 +577,7 @@ public sealed class TrackerGuiOverlay
             GUIUtility.ExitGUI();
         }
 
-        if (GUILayout.Button("Phone 2 Co-Operator / Port 5005", _buttonStyle, GUILayout.Height(54)))
+        if (GUILayout.Button("Phone 2 Co-Operator / Port 5005", _buttonStyle, GUILayout.Height(80)))
         {
             tracker.sourceId = 2;
             tracker.targetPort = 5005;
@@ -440,10 +590,18 @@ public sealed class TrackerGuiOverlay
         GUILayout.Space(8);
 
         GUILayout.Label("Target IP:", _menuStyle);
-        tracker.targetIp = GUILayout.TextField(tracker.targetIp, GUILayout.Height(46));
+        tracker.targetIp = GUILayout.TextField(
+            tracker.targetIp,
+            _textFieldStyle,
+            GUILayout.Height(66)
+        );
 
         GUILayout.Label($"UDP Port: {tracker.targetPort}", _menuStyle);
-        string portText = GUILayout.TextField(tracker.targetPort.ToString(), GUILayout.Height(46));
+        string portText = GUILayout.TextField(
+            tracker.targetPort.ToString(),
+            _textFieldStyle,
+            GUILayout.Height(66)
+        );
 
         if (int.TryParse(portText, out int parsedPort))
             tracker.targetPort = Mathf.Clamp(parsedPort, 1, 65535);
@@ -485,36 +643,55 @@ public sealed class TrackerGuiOverlay
         GUILayout.EndHorizontal();
 
         tracker.sourceId = Mathf.RoundToInt(
-            GUILayout.HorizontalSlider(tracker.sourceId, 1, 4, GUILayout.Height(44))
+            DrawLargeHorizontalSlider(tracker.sourceId, 1f, 4f)
         );
         tracker.sourceId = Mathf.Clamp(tracker.sourceId, 1, 4);
 
         GUILayout.Label($"Send Rate: {tracker.sendRateHz:F0} Hz", _menuStyle);
 
-        tracker.sendRateHz = GUILayout.HorizontalSlider(
+        tracker.sendRateHz = DrawLargeHorizontalSlider(
             tracker.sendRateHz,
             1f,
-            60f,
-            GUILayout.Height(44)
+            60f
         );
+
+        tracker.udpOutputEnabled = DrawOnOffButton("UDP Output",
+            tracker.udpOutputEnabled
+        );
+
+        GUILayout.Space(8);
+
+        GUILayout.Label(tracker.MeasurementStatusText, _menuStyle);
+
+        tracker.measurementCountdownSec = DrawFloatSlider(
+            $"Countdown: {tracker.measurementCountdownSec:F0} s",
+            tracker.measurementCountdownSec,
+            1f,
+            10f
+        );
+
+        tracker.measurementDurationSec = DrawFloatSlider(
+            $"Measurement duration: {tracker.measurementDurationSec:F0} s",
+            tracker.measurementDurationSec,
+            1f,
+            120f
+        );
+
+        DrawMeasurementMenuButton(tracker);
 
         tracker.allowOperatorControl = DrawOnOffButton($"Operator Control / deadman source",tracker.allowOperatorControl);
 
-        tracker.debugBinaryUdp = GUILayout.Toggle(
-            tracker.debugBinaryUdp,
-            "Debug Binary Log",
-            GUILayout.Height(44)
-        );
+        tracker.debugBinaryUdp = DrawDebugBinaryButton(tracker.debugBinaryUdp);
 
         GUILayout.BeginHorizontal();
 
-        if (GUILayout.Button("SAVE SETTINGS", _buttonStyle, GUILayout.Height(52)))
+        if (GUILayout.Button("SAVE SETTINGS", _buttonStyle, GUILayout.Height(80)))
         {
             tracker.SaveUserSettings();
             GUIUtility.ExitGUI();
         }
 
-        if (GUILayout.Button("LOAD SETTINGS", _buttonStyle, GUILayout.Height(52)))
+        if (GUILayout.Button("LOAD SETTINGS", _buttonStyle, GUILayout.Height(80)))
         {
             tracker.LoadUserSettings();
             GUIUtility.ExitGUI();
@@ -526,6 +703,53 @@ public sealed class TrackerGuiOverlay
 
         GUILayout.Label($"Deadman: {(tracker.deadmanPressed ? 1 : 0)}", _menuStyle);
         GUILayout.Label($"Speed: {tracker.speedPercent}%", _menuStyle);
+    }
+
+    private void DrawMeasurementMenuButton(AprilTagMvpTracker tracker)
+    {
+        bool measurementActive = tracker.IsMeasurementRunning;
+
+        string text = measurementActive ? "STOP" : "MEASURE";
+
+        Color oldBg = GUI.backgroundColor;
+
+        GUI.backgroundColor = measurementActive
+            ? new Color(0.90f, 0.12f, 0.12f, 1f)
+            : new Color(0.35f, 0.35f, 0.35f, 1f);
+
+        if (GUILayout.Button(text, _buttonStyle, GUILayout.Height(76)))
+        {
+            if (measurementActive)
+                tracker.StopMeasurement();
+            else
+                tracker.StartMeasurement();
+
+            GUIUtility.ExitGUI();
+        }
+
+        GUI.backgroundColor = oldBg;
+    }
+
+    private bool DrawDebugBinaryButton(bool currentValue)
+    {
+        string text = currentValue
+            ? "Debug Binary Log: ON"
+            : "Debug Binary Log: OFF";
+
+        Color oldBg = GUI.backgroundColor;
+
+        GUI.backgroundColor = currentValue
+            ? new Color(0.10f, 0.45f, 0.10f, 1f)
+            : new Color(0.35f, 0.35f, 0.35f, 1f);
+
+        if (GUILayout.Button(text, _buttonStyle, GUILayout.Height(76)))
+        {
+            currentValue = !currentValue;
+        }
+
+        GUI.backgroundColor = oldBg;
+
+        return currentValue;
     }
 
     private void DrawLeftScrollControls(Rect rect)
@@ -546,19 +770,28 @@ public sealed class TrackerGuiOverlay
 
         GUI.Label(labelRect, "SCROLL", _smallLabelStyle);
     }
-
-    private float DrawFloatSlider(string label, float value, float min, float max)
+    private float DrawLargeHorizontalSlider(float value, float min, float max)
     {
-        GUILayout.Label(label, _menuStyle);
+        GUILayout.Space(4);
 
         value = GUILayout.HorizontalSlider(
             value,
             min,
             max,
-            GUILayout.Height(48)
+            _sliderStyle,
+            _sliderThumbStyle,
+            GUILayout.Height(64)
         );
 
-        GUILayout.Space(8);
+        GUILayout.Space(6);
+
+        return value;
+    }
+    private float DrawFloatSlider(string label, float value, float min, float max)
+    {
+        GUILayout.Label(label, _menuStyle);
+
+        value = DrawLargeHorizontalSlider(value, min, max);
 
         return value;
     }
@@ -568,7 +801,7 @@ public sealed class TrackerGuiOverlay
         string state = currentValue ? "ON" : "OFF";
         string text = $"{label}: {state}";
 
-        if (GUILayout.Button(text, _buttonStyle, GUILayout.Height(60)))
+        if (GUILayout.Button(text, _buttonStyle, GUILayout.Height(80)))
             currentValue = !currentValue;
 
         return currentValue;
@@ -579,7 +812,7 @@ public sealed class TrackerGuiOverlay
         string state = inverted ? "ODWRÓCONY" : "NORMALNY";
         string text = $"{label}: {state}";
 
-        if (GUILayout.Button(text, _buttonStyle, GUILayout.Height(64)))
+        if (GUILayout.Button(text, _buttonStyle, GUILayout.Height(80)))
             inverted = !inverted;
 
         return inverted;
@@ -588,39 +821,226 @@ public sealed class TrackerGuiOverlay
     private bool DrawMappingButton(string label, bool isActive)
     {
         string text = isActive ? $"[{label}]" : label;
-        return GUILayout.Button(text, _buttonStyle, GUILayout.Height(58));
+        return GUILayout.Button(text, _buttonStyle, GUILayout.Height(64));
+    }
+
+    private void DrawRotatedLabel(Rect rect, string text, GUIStyle style, float angleDeg)
+    {
+        Matrix4x4 oldMatrix = GUI.matrix;
+        Vector2 pivot = rect.center;
+
+        GUIUtility.RotateAroundPivot(angleDeg, pivot);
+        GUI.Label(rect, text, style);
+
+        GUI.matrix = oldMatrix;
+    }
+
+    private bool DrawMeasurementButtonRect(Rect rect, AprilTagMvpTracker tracker)
+    {
+        bool measurementActive = tracker.IsMeasurementRunning;
+
+        string text = measurementActive ? "STOP" : "MEASURE";
+
+        Color oldBg = GUI.backgroundColor;
+
+        GUI.backgroundColor = measurementActive
+            ? new Color(0.90f, 0.12f, 0.12f, 1f)
+            : new Color(0.35f, 0.35f, 0.35f, 1f);
+
+        bool clicked = GUI.Button(rect, text, _buttonStyle);
+
+        GUI.backgroundColor = oldBg;
+
+        if (clicked)
+        {
+            if (measurementActive)
+                tracker.StopMeasurement();
+            else
+                tracker.StartMeasurement();
+
+            GUIUtility.ExitGUI();
+        }
+
+        return clicked;
     }
 
     private void DrawDriveControlPanel(AprilTagMvpTracker tracker)
     {
-        bool portrait = IsPortrait();
-
-        float margin = 25f;
-        float panelH = 170f;
-
-        float panelW;
-
-        if (portrait)
-        {
-            Rect menuRect = GetCalibrationMenuRect();
-            panelW = Mathf.Clamp(menuRect.x - margin * 2f, 285f, 430f);
-        }
+        if (IsPortrait())
+            DrawDriveControlPanelPortrait(tracker);
         else
-        {
-            panelW = 430f;
-        }
+            DrawDriveControlPanelLandscape(tracker);
+    }
 
-        Rect panelRect = new Rect(margin, 25f, panelW, panelH);
+    private void DrawDriveControlPanelLandscape(AprilTagMvpTracker tracker)
+    {
+        Rect safe = Screen.safeArea;
+
+        float margin = 18f;
+        float topY = safe.yMin + 24f;
+
+        // Lewy panel: measurement + speed, trochę węższy,
+        // żeby deadman miał więcej miejsca.
+        float leftPanelW = 245f;
+        float leftPanelH = 165f;
+
+        Rect leftPanelRect = new Rect(
+            safe.xMin + margin,
+            topY,
+            leftPanelW,
+            leftPanelH
+        );
 
         GUI.color = _panelBgColor;
-        GUI.DrawTexture(panelRect, Texture2D.whiteTexture);
+        GUI.DrawTexture(leftPanelRect, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
+        Rect measurementRect = new Rect(
+            leftPanelRect.x + 10f,
+            leftPanelRect.y + 10f,
+            leftPanelRect.width - 20f,
+            62f
+        );
+
+        DrawMeasurementButtonRect(measurementRect, tracker);
+
+        Rect labelRect = new Rect(
+            leftPanelRect.x + 12f,
+            measurementRect.yMax + 10f,
+            leftPanelRect.width - 24f,
+            30f
+        );
+
+        GUI.Label(labelRect, $"Speed: {tracker.speedPercent}%", _menuStyle);
+
+        Rect sliderRect = new Rect(
+            leftPanelRect.x + 12f,
+            labelRect.yMax + 8f,
+            leftPanelRect.width - 24f,
+            54f
+        );
+
+        float speedSliderValue = GUI.HorizontalSlider(
+            sliderRect,
+            tracker.speedPercent,
+            0f,
+            100f,
+            _sliderStyle,
+            _sliderThumbStyle
+        );
+
+        tracker.speedPercent = Mathf.RoundToInt(speedSliderValue);
+
+        // Deadman: maksymalnie szeroki do menu.
+        float rightLimit = _isMenuOpen
+            ? GetCalibrationMenuRect().x - 10f
+            : safe.xMax - 18f;
+
+        float deadmanX = leftPanelRect.xMax + 10f;
+        float deadmanY = topY;
+        float deadmanH = 160f;
+        float deadmanW = Mathf.Max(320f, rightLimit - deadmanX);
+
+        Rect deadmanRect = new Rect(deadmanX, deadmanY, deadmanW, deadmanH);
+
+        tracker.deadmanPressed = IsPointerDownInside(deadmanRect);
+
+        GUI.color = tracker.deadmanPressed ? _deadmanOnColor : _deadmanOffColor;
+        GUI.DrawTexture(deadmanRect, Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        Rect deadmanTextRect = new Rect(
+            deadmanRect.x + 18f,
+            deadmanRect.y + 8f,
+            deadmanRect.width - 36f,
+            deadmanRect.height - 16f
+        );
+
+        GUI.Label(
+            deadmanTextRect,
+            tracker.deadmanPressed ? "DEADMAN ON" : "TRZYMAJ, ABY JECHAĆ",
+            _deadmanStyle
+        );
+    }
+
+    private void DrawDriveControlPanelPortrait(AprilTagMvpTracker tracker)
+    {
+        Rect safe = Screen.safeArea;
+
+        float margin = 12f;
+
+        // Górny panel: MEASURE/STOP + speed.
+        // Szerszy i wyższy, żeby była widoczna wartość speed.
+        float topPanelX = safe.xMin + margin;
+        float topPanelY = safe.yMin + 14f;
+        float topPanelW = 260f;
+        float topPanelH = 225f;
+
+        Rect topPanelRect = new Rect(
+            topPanelX,
+            topPanelY,
+            topPanelW,
+            topPanelH
+        );
+
+        GUI.color = _panelBgColor;
+        GUI.DrawTexture(topPanelRect, Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        Rect measurementRect = new Rect(
+            topPanelRect.x + 10f,
+            topPanelRect.y + 10f,
+            topPanelRect.width - 20f,
+            58f
+        );
+
+        DrawMeasurementButtonRect(measurementRect, tracker);
+
+        Rect labelRect = new Rect(
+            topPanelRect.x + 14f,
+            measurementRect.yMax + 16f,
+            topPanelRect.width - 28f,
+            42f
+        );
+
+        // Krótszy napis, żeby zawsze mieściła się liczba.
+        GUI.Label(labelRect, $"Speed: {tracker.speedPercent}%", _menuStyle);
+
+        Rect sliderRect = new Rect(
+            topPanelRect.x + 18f,
+            labelRect.yMax + 12f,
+            topPanelRect.width - 36f,
+            58f
+        );
+
+        float speedSliderValue = GUI.HorizontalSlider(
+            sliderRect,
+            tracker.speedPercent,
+            0f,
+            100f,
+            _sliderStyle,
+            _sliderThumbStyle
+        );
+
+        tracker.speedPercent = Mathf.RoundToInt(speedSliderValue);
+
+        // Deadman pionowy po lewej stronie.
+        Rect debugRect = GetDebugBoxRect("");
+        float udpAndStatusReserved = tracker.ShowMeasurementOverlay ? 126f : 68f;
+
+        float deadmanX = safe.xMin + margin;
+        float deadmanY = topPanelRect.yMax + 14f;
+        float deadmanW = 150f;
+        float deadmanBottom = debugRect.y - udpAndStatusReserved - 14f;
+
+        float deadmanH = deadmanBottom - deadmanY;
+        deadmanH = Mathf.Clamp(deadmanH, 260f, safe.height * 0.60f);
+
         Rect deadmanRect = new Rect(
-            panelRect.x + 18f,
-            panelRect.y + 14f,
-            panelW - 36f,
-            72f
+            deadmanX,
+            deadmanY,
+            deadmanW,
+            deadmanH
         );
 
         tracker.deadmanPressed = IsPointerDownInside(deadmanRect);
@@ -629,81 +1049,65 @@ public sealed class TrackerGuiOverlay
         GUI.DrawTexture(deadmanRect, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        GUI.Label(
-            deadmanRect,
-            tracker.deadmanPressed ? "DEADMAN ON" : "TRZYMAJ, ABY JECHAĆ",
-            _deadmanStyle
+        string deadmanText = tracker.deadmanPressed
+            ? "DEADMAN ON"
+            : "TRZYMAJ, ABY JECHAĆ";
+
+        Rect rotatedTextRect = new Rect(
+            deadmanRect.center.x - deadmanRect.height * 0.5f,
+            deadmanRect.center.y - deadmanRect.width * 0.5f,
+            deadmanRect.height,
+            deadmanRect.width
         );
 
-        Rect labelRect = new Rect(
-            panelRect.x + 18f,
-            panelRect.y + 96f,
-            panelW - 36f,
-            28f
-        );
-
-        GUI.Label(labelRect, $"Speed limit: {tracker.speedPercent} %", _menuStyle);
-
-        Rect sliderRect = new Rect(
-            panelRect.x + 18f,
-            panelRect.y + 132f,
-            panelW - 36f,
-            32f
-        );
-
-        float speedSliderValue = GUI.HorizontalSlider(sliderRect, tracker.speedPercent, 0f, 100f);
-        tracker.speedPercent = Mathf.RoundToInt(speedSliderValue);
+        DrawRotatedLabel(rotatedTextRect, deadmanText, _deadmanVerticalStyle, 90f);
     }
 
-    private void DrawDebugBox(string debugText)
+    private Rect GetDebugBoxRect(string debugText)
     {
         bool portrait = IsPortrait();
         Rect safe = Screen.safeArea;
 
-        float extraBottomGapPx = 34f;
         float paddingX = 18f;
         float paddingY = 16f;
+        float bottomGap = 34f;
 
-        float marginXPortrait = 24f;
-        float marginXLandscapePx = 24f;
-
-        float xBox = portrait
-            ? safe.xMin + marginXPortrait
-            : marginXLandscapePx;
-
-        float width;
-
-        if (portrait)
-        {
-            width = safe.width - marginXPortrait * 2f;
-        }
-        else
-        {
-            width = Mathf.Min(Screen.width * 0.76f - marginXLandscapePx, 1350f);
-        }
+        float x = portrait ? safe.xMin + 24f : 24f;
+        float width = portrait
+            ? safe.width - 48f
+            : Mathf.Min(Screen.width * 0.76f - 24f, 1350f);
 
         width = Mathf.Max(width, 320f);
 
         _debugContent.text = debugText;
 
         float textHeight = _debugStyle.CalcHeight(_debugContent, width - paddingX * 2f);
-
         float minHeight = portrait ? 285f : 260f;
         float maxHeight = safe.height * (portrait ? 0.36f : 0.42f);
         float height = Mathf.Clamp(textHeight + paddingY * 2f + 18f, minHeight, maxHeight);
 
-        float yBox = Screen.height - safe.yMin - extraBottomGapPx - height;
+        float y = Screen.height - safe.yMin - bottomGap - height;
+
+        return new Rect(x, y, width, height);
+    }
+
+    private void DrawDebugBox(string debugText, Rect debugRect)
+    {
+        float paddingX = 18f;
+        float paddingY = 16f;
+
+        _debugContent.text = debugText;
 
         GUI.color = _debugBgColor;
-        GUI.DrawTexture(new Rect(xBox, yBox, width, height), Texture2D.whiteTexture);
+        GUI.DrawTexture(debugRect, Texture2D.whiteTexture);
 
         GUI.color = Color.white;
         GUI.Label(
             new Rect(
-                xBox + paddingX,
-                yBox + paddingY,
-                width - paddingX * 2f,
-                height - paddingY * 2f
+                debugRect.x + paddingX,
+                debugRect.y + paddingY,
+                debugRect.width - paddingX * 2f,
+                debugRect.height - paddingY * 2f
             ),
             _debugContent,
             _debugStyle

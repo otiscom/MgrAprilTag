@@ -14,8 +14,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         Cover180
     }
 
-    private const string BUILD_MARK = "V19_ATB1_BINARY_UDP";
-
+    private const string BUILD_MARK = "V20_UDP_MEASURE_MODE";
     private const bool FORCE_START_CALIBRATION = true;
 
     private const float START_TAG_SIZE = 0.13f;
@@ -54,6 +53,62 @@ public class AprilTagMvpTracker : MonoBehaviour
 
     [Range(1f, 60f)]
     public float sendRateHz = 20f;
+
+    [Header("UDP Output / Measurement")]
+    [Tooltip("Jeśli false, aplikacja nie wysyła żadnych pakietów UDP poza aktywnym pomiarem.")]
+    public bool udpOutputEnabled = true;
+
+    [Range(1f, 120f)]
+    [Tooltip("Czas właściwego pomiaru, podczas którego UDP jest włączone.")]
+    public float measurementDurationSec = 10f;
+
+    [Range(1f, 10f)]
+    [Tooltip("Czas odliczania przed pomiarem. Dla 3 s: beep 3, beep 2, beep 1, długi beep START.")]
+    public float measurementCountdownSec = 3f;
+
+    private enum MeasurementState
+    {
+        Idle,
+        Countdown,
+        Logging
+    }
+
+    private MeasurementState _measurementState = MeasurementState.Idle;
+
+    private float _measurementCountdownStartTime = 0f;
+    private float _measurementLoggingStartTime = 0f;
+    private float _measurementLoggingEndTime = 0f;
+
+    private int _lastCountdownBeepIndex = -1;
+    private bool _udpStateBeforeMeasurement = true;
+
+    public string MeasurementStatusText { get; private set; } = "MEAS: IDLE";
+
+
+    public string MeasurementOverlayText { get; private set; } = "";
+    private float _measurementOverlayVisibleUntil = -999f;
+
+    public bool ShowMeasurementOverlay
+    {
+        get
+        {
+            return _measurementState != MeasurementState.Idle ||
+                   Time.realtimeSinceStartup < _measurementOverlayVisibleUntil;
+        }
+    }
+
+    public bool IsMeasurementRunning
+    {
+        get
+        {
+            return _measurementState != MeasurementState.Idle;
+        }
+    }
+
+    private AudioSource _beepSource;
+    private AudioClip _beepShortClip;
+    private AudioClip _beepLongClip;
+    private AudioClip _beepEndClip;
 
     [Header("Sterowanie pojazdem - UDP")]
     [Range(0, 100)]
@@ -185,6 +240,10 @@ public class AprilTagMvpTracker : MonoBehaviour
     private const string PrefMirrorCpuY = "Vision.MirrorCpuY";
 
 
+    private const string PrefUdpOutputEnabled = "Vision.UdpOutputEnabled";
+    private const string PrefMeasurementDurationSec = "Vision.MeasurementDurationSec";
+    private const string PrefMeasurementCountdownSec = "Vision.MeasurementCountdownSec";
+
     private bool _cameraFrameSubscribed = false;
 
     void Start()
@@ -240,6 +299,7 @@ public class AprilTagMvpTracker : MonoBehaviour
 
         _guiOverlay = new TrackerGuiOverlay();
         _axisOverlay = new AprilTagAxisOverlayRenderer();
+        SetupBeepAudio();
     }
 
     void OnEnable()
@@ -297,6 +357,11 @@ public class AprilTagMvpTracker : MonoBehaviour
 
         float now = Time.realtimeSinceStartup;
 
+        UpdateMeasurementState(now);
+
+        if (!udpOutputEnabled)
+            return;
+
         bool poseFresh =
             _latestPoseValid &&
             now - _lastValidPoseTime <= staleOverlayTimeout;
@@ -304,6 +369,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         bool effectiveDeadman = allowOperatorControl && deadmanPressed;
 
         ConfigureUdpSender();
+
 
         if (poseFresh)
         {
@@ -640,6 +706,10 @@ public class AprilTagMvpTracker : MonoBehaviour
         PlayerPrefs.SetInt(PrefMirrorCpuX, mirrorCpuX ? 1 : 0);
         PlayerPrefs.SetInt(PrefMirrorCpuY, mirrorCpuY ? 1 : 0);
 
+        PlayerPrefs.SetInt(PrefUdpOutputEnabled, udpOutputEnabled ? 1 : 0);
+        PlayerPrefs.SetFloat(PrefMeasurementDurationSec, measurementDurationSec);
+        PlayerPrefs.SetFloat(PrefMeasurementCountdownSec, measurementCountdownSec);
+
         PlayerPrefs.Save();
 
         Debug.Log("[Settings] Saved user settings.");
@@ -664,9 +734,198 @@ public class AprilTagMvpTracker : MonoBehaviour
         targetPort = Mathf.Clamp(targetPort, 1, 65535);
         sendRateHz = Mathf.Clamp(sendRateHz, 1f, 60f);
 
+        udpOutputEnabled = PlayerPrefs.GetInt(PrefUdpOutputEnabled, udpOutputEnabled ? 1 : 0) != 0;
+        measurementDurationSec = PlayerPrefs.GetFloat(PrefMeasurementDurationSec, measurementDurationSec);
+        measurementCountdownSec = PlayerPrefs.GetFloat(PrefMeasurementCountdownSec, measurementCountdownSec);
+
+        measurementDurationSec = Mathf.Clamp(measurementDurationSec, 1f, 120f);
+        measurementCountdownSec = Mathf.Clamp(measurementCountdownSec, 1f, 10f);
+
         Debug.Log("[Settings] Loaded user settings.");
     }
 
+    public void StartMeasurement()
+    {
+        if (_measurementState != MeasurementState.Idle)
+            return;
+
+        float now = Time.realtimeSinceStartup;
+
+        _udpStateBeforeMeasurement = udpOutputEnabled;
+        udpOutputEnabled = false;
+
+        _measurementCountdownStartTime = now;
+        _lastCountdownBeepIndex = -1;
+
+        _measurementState = MeasurementState.Countdown;
+
+        int countdown = Mathf.CeilToInt(measurementCountdownSec);
+
+        MeasurementStatusText = $"COUNTDOWN: {countdown}";
+        MeasurementOverlayText = $"POMIAR ZA: {countdown}";
+
+        Debug.Log($"[Measurement] Countdown started. countdown={measurementCountdownSec:F1}s duration={measurementDurationSec:F1}s");
+    }
+
+    public void StopMeasurement()
+    {
+        if (_measurementState == MeasurementState.Idle)
+            return;
+
+        float now = Time.realtimeSinceStartup;
+
+        _measurementState = MeasurementState.Idle;
+        udpOutputEnabled = _udpStateBeforeMeasurement;
+
+        MeasurementStatusText = "MEAS: STOPPED";
+        MeasurementOverlayText = "POMIAR PRZERWANY";
+        _measurementOverlayVisibleUntil = now + 2.5f;
+
+        PlayEndBeep();
+
+        Debug.Log("[Measurement] Stopped manually.");
+    }
+
+private void UpdateMeasurementState(float now)
+{
+    if (_measurementState == MeasurementState.Idle)
+    {
+        MeasurementStatusText = udpOutputEnabled
+            ? "UDP: ON | MEAS: IDLE"
+            : "UDP: OFF | MEAS: IDLE";
+
+        if (now >= _measurementOverlayVisibleUntil)
+            MeasurementOverlayText = "";
+
+        return;
+    }
+
+    if (_measurementState == MeasurementState.Countdown)
+    {
+        udpOutputEnabled = false;
+
+        float elapsed = now - _measurementCountdownStartTime;
+        int countdownTotal = Mathf.CeilToInt(measurementCountdownSec);
+
+        int beepIndex = Mathf.FloorToInt(elapsed);
+
+        if (beepIndex != _lastCountdownBeepIndex && beepIndex < countdownTotal)
+        {
+            _lastCountdownBeepIndex = beepIndex;
+            PlayShortBeep();
+        }
+
+        int remaining = Mathf.Max(1, Mathf.CeilToInt(measurementCountdownSec - elapsed));
+
+        MeasurementStatusText = $"COUNTDOWN: {remaining}";
+        MeasurementOverlayText = $"POMIAR ZA: {remaining}";
+
+        if (elapsed >= measurementCountdownSec)
+        {
+            _measurementLoggingStartTime = now;
+            _measurementLoggingEndTime = now + measurementDurationSec;
+
+            udpOutputEnabled = true;
+            _measurementState = MeasurementState.Logging;
+
+            MeasurementStatusText = $"LOGGING: {measurementDurationSec:F1}s";
+            MeasurementOverlayText = $"POMIAR TRWA: {measurementDurationSec:F1}s";
+
+            PlayLongBeep();
+
+            Debug.Log($"[Measurement] Logging started for {measurementDurationSec:F1}s.");
+        }
+
+        return;
+    }
+
+    if (_measurementState == MeasurementState.Logging)
+    {
+        udpOutputEnabled = true;
+
+        float remaining = _measurementLoggingEndTime - now;
+        float remainingClamped = Mathf.Max(0f, remaining);
+
+        MeasurementStatusText = $"LOGGING: {remainingClamped:F1}s";
+        MeasurementOverlayText = $"POMIAR TRWA: {remainingClamped:F1}s";
+
+        if (now >= _measurementLoggingEndTime)
+        {
+            _measurementState = MeasurementState.Idle;
+            udpOutputEnabled = _udpStateBeforeMeasurement;
+
+            MeasurementStatusText = "MEAS: DONE";
+            MeasurementOverlayText = "POMIAR ZAKOŃCZONY";
+            _measurementOverlayVisibleUntil = now + 2.5f;
+
+            PlayEndBeep();
+
+            Debug.Log("[Measurement] Logging finished.");
+        }
+    }
+}
+    private void SetupBeepAudio()
+    {
+        _beepSource = GetComponent<AudioSource>();
+
+        if (_beepSource == null)
+            _beepSource = gameObject.AddComponent<AudioSource>();
+
+        _beepSource.playOnAwake = false;
+        _beepSource.volume = 1.0f;
+
+        _beepShortClip = CreateBeepClip("beep_short", 880f, 0.10f, 0.35f);
+        _beepLongClip = CreateBeepClip("beep_start", 880f, 0.45f, 0.45f);
+        _beepEndClip = CreateBeepClip("beep_end", 440f, 0.25f, 0.35f);
+    }
+
+    private AudioClip CreateBeepClip(string name, float frequencyHz, float durationSec, float volume)
+    {
+        const int sampleRate = 44100;
+
+        int samples = Mathf.CeilToInt(sampleRate * durationSec);
+        float[] data = new float[samples];
+
+        int fadeSamples = Mathf.Max(1, Mathf.RoundToInt(sampleRate * 0.01f));
+
+        for (int i = 0; i < samples; i++)
+        {
+            float t = (float)i / sampleRate;
+            float envelope = 1f;
+
+            if (i < fadeSamples)
+                envelope = (float)i / fadeSamples;
+            else if (i > samples - fadeSamples)
+                envelope = (float)(samples - i) / fadeSamples;
+
+            envelope = Mathf.Clamp01(envelope);
+
+            data[i] = Mathf.Sin(2f * Mathf.PI * frequencyHz * t) * volume * envelope;
+        }
+
+        AudioClip clip = AudioClip.Create(name, samples, 1, sampleRate, false);
+        clip.SetData(data, 0);
+
+        return clip;
+    }
+
+    private void PlayShortBeep()
+    {
+        if (_beepSource != null && _beepShortClip != null)
+            _beepSource.PlayOneShot(_beepShortClip);
+    }
+
+    private void PlayLongBeep()
+    {
+        if (_beepSource != null && _beepLongClip != null)
+            _beepSource.PlayOneShot(_beepLongClip);
+    }
+
+    private void PlayEndBeep()
+    {
+        if (_beepSource != null && _beepEndClip != null)
+            _beepSource.PlayOneShot(_beepEndClip);
+    }
 
     void OnGUI()
     {
