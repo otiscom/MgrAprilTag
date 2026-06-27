@@ -1,34 +1,4 @@
-﻿/*
-AprilTagMvpTracker.cs
-- nadzoruje ARCameraManager
-- pobiera XRCpuImage
-- odpala AprilTag detector
-- liczy relację ID0 -> ID1
-- wysyła UDP
-- przekazuje dane do GUI i overlayu
-
-TrackerGuiOverlay.cs
-- menu
-- deadman
-- speed slider
-- debug box
-
-UdpTelemetrySender.cs
-- ramka UDP
-- CRC
-- bufor wysyłki
-
-AprilTagAxisOverlayRenderer.cs
-- biały obrys
-- osie X/Y/Z
-- symbol Z
-- mapowanie CPU image -> ekran
-*/
-
-
-
-using AprilTag;
-using System;
+﻿using AprilTag;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
@@ -44,7 +14,7 @@ public class AprilTagMvpTracker : MonoBehaviour
         Cover180
     }
 
-    private const string BUILD_MARK = "V18_GUI_UDP_OVERLAY_SPLIT";
+    private const string BUILD_MARK = "V19_ATB1_BINARY_UDP";
 
     private const bool FORCE_START_CALIBRATION = true;
 
@@ -67,13 +37,31 @@ public class AprilTagMvpTracker : MonoBehaviour
     private float _lastSuccessfulCpuImageTime = -999f;
 
     [Header("UDP Telemetria")]
-    public string pcIp = "10.171.128.230";
-    public int udpPort = 5005;
-    public float sendRateHz = 30f;
+    public UdpSendMode sendMode = UdpSendMode.TextAT1;
+
+    [Tooltip("Adres IP odbiornika UDP, np. komputer albo ESP32.")]
+    public string targetIp = "192.168.18.238";
+
+    [Tooltip("Port UDP odbiornika. Port nie identyfikuje telefonu — telefon identyfikuje sourceId.")]
+    public int targetPort = 5005;
+
+    [Range(1, 4)]
+    [Tooltip("ID źródła danych. Telefon 1 = 1, telefon 2 = 2, itd.")]
+    public int sourceId = 1;
+
+    [Tooltip("Loguje co ok. 1 s podstawowe informacje o binarnej ramce ATB1.")]
+    public bool debugBinaryUdp = false;
+
+    [Range(1f, 60f)]
+    public float sendRateHz = 20f;
 
     [Header("Sterowanie pojazdem - UDP")]
     [Range(0, 100)]
     public int speedPercent = 20;
+
+    [Header("Tryb urządzenia")]
+    [Tooltip("Jeśli false, telefon działa jako obserwator i nie wysyła deadman/move_en.")]
+    public bool allowOperatorControl = true;
 
     [Tooltip("Aktualny stan przycisku deadman. Ustawiany automatycznie przez przycisk na ekranie.")]
     public bool deadmanPressed = false;
@@ -142,16 +130,14 @@ public class AprilTagMvpTracker : MonoBehaviour
     public float knownCalibrationDistance = 0.16f;
 
     private TagDetector _detector;
-    
     private Camera _arCamera;
     private UdpTelemetrySender _telemetry;
 
-
     private string _debugText = "Szukam sygnału ARCore...";
-    
+
     private int _currentDetectorWidth = 0;
     private int _currentDetectorHeight = 0;
-        
+
     private TrackerGuiOverlay _guiOverlay;
     private AprilTagAxisOverlayRenderer _axisOverlay;
 
@@ -164,14 +150,42 @@ public class AprilTagMvpTracker : MonoBehaviour
     private float _lastCorrectedDistance = 0f;
 
     // Historia kąta yaw używana do unwrapu.
-    // Problem wynika z reprezentacji kąta na okręgu:
     // +180° i -180° opisują prawie ten sam kierunek,
     // ale numerycznie wyglądają jak skok około 360°.
-    // Dlatego do regulatora wysyłamy yaw ciągły.
+    // Dlatego do regulatora używamy yaw ciągłego.
     private bool _yawHistoryValid = false;
     private float _prevYawWrappedDeg = 0f;
     private float _yawUnwrappedDeg = 0f;
+    private float _prevYawUnwrappedTime = 0f;
+    private float _yawRateDps = 0f;
+    // Ostatni stan vision zapamiętany przez OnFrame.
+    // Update() wysyła ten stan przez UDP niezależnie od kamery.
+    private bool _latestPoseValid = false;
+    private float _lastValidPoseTime = -999f;
 
+    private float _latestX = 0f;
+    private float _latestY = 0f;
+    private float _latestZ = 0f;
+    private float _latestYawWrappedDeg = 0f;
+    private float _latestYawUnwrappedDeg = 0f;
+    private float _latestYawRateDps = 0f;
+    private int _latestFpsHz = 0;
+
+    private const string PrefUdpSendMode = "Vision.UdpSendMode";
+    private const string PrefTargetIp = "Vision.TargetIp";
+    private const string PrefTargetPort = "Vision.TargetPort";
+    private const string PrefSourceId = "Vision.SourceId";
+    private const string PrefSendRateHz = "Vision.SendRateHz";
+    private const string PrefAllowOperatorControl = "Vision.AllowOperatorControl";
+
+    private const string PrefFocalScale = "Vision.FocalScale";
+    private const string PrefMeasurementScale = "Vision.MeasurementScale";
+    private const string PrefCpuMapping = "Vision.CpuMapping";
+    private const string PrefMirrorCpuX = "Vision.MirrorCpuX";
+    private const string PrefMirrorCpuY = "Vision.MirrorCpuY";
+
+
+    private bool _cameraFrameSubscribed = false;
 
     void Start()
     {
@@ -201,6 +215,9 @@ public class AprilTagMvpTracker : MonoBehaviour
             mirrorCpuY = true;
         }
 
+        LoadUserSettings();
+
+
         if (camManager == null)
             camManager = FindObjectOfType<ARCameraManager>();
 
@@ -210,67 +227,163 @@ public class AprilTagMvpTracker : MonoBehaviour
         if (_arCamera == null)
             _arCamera = Camera.main;
 
-        _telemetry = new UdpTelemetrySender(pcIp, udpPort, sendRateHz);
+        TrySubscribeCameraFrames();
+
+        _telemetry = new UdpTelemetrySender(
+            targetIp,
+            targetPort,
+            sendRateHz,
+            sendMode,
+            (byte)Mathf.Clamp(sourceId, 1, 4),
+            debugBinaryUdp
+        );
+
         _guiOverlay = new TrackerGuiOverlay();
         _axisOverlay = new AprilTagAxisOverlayRenderer();
     }
 
     void OnEnable()
     {
-        if (camManager != null)
-            camManager.frameReceived += OnFrame;
+        TrySubscribeCameraFrames();
     }
 
     void OnDisable()
     {
+        UnsubscribeCameraFrames();
+    }
+
+    void TrySubscribeCameraFrames()
+    {
+        if (_cameraFrameSubscribed)
+            return;
+
+        if (camManager == null)
+            camManager = FindObjectOfType<ARCameraManager>();
+
+        if (camManager == null)
+            return;
+
+        camManager.frameReceived += OnFrame;
+        _cameraFrameSubscribed = true;
+    }
+
+    void UnsubscribeCameraFrames()
+    {
+        if (!_cameraFrameSubscribed)
+            return;
+
         if (camManager != null)
             camManager.frameReceived -= OnFrame;
+
+        _cameraFrameSubscribed = false;
+    }
+
+    void ConfigureUdpSender()
+    {
+        _telemetry?.Configure(
+            targetIp,
+            targetPort,
+            sendRateHz,
+            sendMode,
+            (byte)Mathf.Clamp(sourceId, 1, 4),
+            debugBinaryUdp
+        );
+    }
+
+    void Update()
+    {
+        if (_telemetry == null)
+            return;
+
+        float now = Time.realtimeSinceStartup;
+
+        bool poseFresh =
+            _latestPoseValid &&
+            now - _lastValidPoseTime <= staleOverlayTimeout;
+
+        bool effectiveDeadman = allowOperatorControl && deadmanPressed;
+
+        ConfigureUdpSender();
+
+        if (poseFresh)
+        {
+            _telemetry.Send(
+                _latestX,
+                _latestY,
+                _latestZ,
+                _latestYawWrappedDeg,
+                _latestYawUnwrappedDeg,
+                _latestYawRateDps,
+                _latestFpsHz,
+                speedPercent,
+                effectiveDeadman,
+                true
+            );
+        }
+        else
+        {
+            _telemetry.Send(
+                0f,
+                0f,
+                0f,
+                0f,
+                0f,
+                0f,
+                _latestFpsHz,
+                speedPercent,
+                effectiveDeadman,
+                false
+            );
+
+            if (now - _lastSuccessfulCpuImageTime > staleOverlayTimeout)
+            {
+                _axisOverlay?.Clear();
+                MarkYawInvalid();
+
+                _debugText =
+                    $"BUILD: {BUILD_MARK}\n" +
+                    $"Brak świeżej klatki CPU / vision stale\n" +
+                    $"Ostatni obraz > {staleOverlayTimeout:F2} s temu\n" +
+                    $"UDP: {sendMode} {targetIp}:{targetPort} src:{sourceId} rate:{sendRateHz:F0}Hz\n" +
+                    $"OperatorCtrl:{allowOperatorControl} deadman:{deadmanPressed} speed:{speedPercent}%";
+            }
+        }
     }
 
     void OnFrame(ARCameraFrameEventArgs args)
     {
+        float now = Time.realtimeSinceStartup;
+
         if (camManager == null)
         {
             _debugText = $"BUILD: {BUILD_MARK}\nBrak ARCameraManager.";
             return;
         }
 
-        if (Time.time - _lastVisionProcessTime < 1f / Mathf.Max(visionRateHz, 1f))
-        {
+        if (now - _lastVisionProcessTime < 1f / Mathf.Max(visionRateHz, 1f))
             return;
-        }
 
-        _lastVisionProcessTime = Time.time;
+        _lastVisionProcessTime = now;
 
         if (!camManager.TryAcquireLatestCpuImage(out XRCpuImage image))
         {
-            // Pojedynczy brak CPU image jest normalny, więc nie czyścimy od razu.
-            // Ale jeśli nie ma świeżej klatki dłużej niż staleOverlayTimeout,
-            // to stary overlay/debug uznajemy za nieaktualny.
-            if (Time.time - _lastSuccessfulCpuImageTime > staleOverlayTimeout)
+            _latestPoseValid = false;
+
+            if (now - _lastSuccessfulCpuImageTime > staleOverlayTimeout)
             {
                 _axisOverlay?.Clear();
                 MarkYawInvalid();
 
-                float fps = 1f / Mathf.Max(Time.deltaTime, 0.0001f);
+                float fps = 1f / Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
                 int fpsHz = Mathf.RoundToInt(fps);
+                _latestFpsHz = fpsHz;
 
                 _debugText =
                     $"BUILD: {BUILD_MARK}\n" +
                     $"Brak świeżej klatki CPU...\n" +
                     $"Ostatni obraz > {staleOverlayTimeout:F2} s temu\n" +
-                    $"CMD deadman:{deadmanPressed} speed:{speedPercent}%";
-
-                _telemetry?.Send(
-                    0f,
-                    0f,
-                    0f,
-                    0f,
-                    fpsHz,
-                    speedPercent,
-                    deadmanPressed,
-                    false
-                );
+                    $"UDP: {sendMode} {targetIp}:{targetPort} src:{sourceId}\n" +
+                    $"OperatorCtrl:{allowOperatorControl} deadman:{deadmanPressed} speed:{speedPercent}%";
             }
 
             return;
@@ -278,9 +391,10 @@ public class AprilTagMvpTracker : MonoBehaviour
 
         using (image)
         {
-            _lastSuccessfulCpuImageTime = Time.time;
+            _lastSuccessfulCpuImageTime = now;
 
             _axisOverlay?.Clear();
+
             int w = image.width;
             int h = image.height;
 
@@ -293,7 +407,9 @@ public class AprilTagMvpTracker : MonoBehaviour
             };
 
             int size = image.GetConvertedDataSize(conv);
+
             using var rawBuf = new NativeArray<byte>(size, Allocator.Temp);
+
             image.Convert(conv, rawBuf);
 
             var colorBuf = rawBuf.Reinterpret<Color32>(1);
@@ -302,6 +418,7 @@ public class AprilTagMvpTracker : MonoBehaviour
             {
                 _detector?.Dispose();
                 _detector = new TagDetector(w, h);
+
                 _currentDetectorWidth = w;
                 _currentDetectorHeight = h;
 
@@ -378,7 +495,7 @@ public class AprilTagMvpTracker : MonoBehaviour
                     tCar = pose;
             }
 
-            float fps = 1f / Mathf.Max(Time.deltaTime, 0.0001f);
+            float fps = 1f / Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
             int fpsHz = Mathf.RoundToInt(fps);
 
             if (tRef.HasValue && tCar.HasValue)
@@ -401,14 +518,10 @@ public class AprilTagMvpTracker : MonoBehaviour
                 if (invertYaw)
                     yawWrappedDeg = -yawWrappedDeg;
 
-                // yaw_wrapped_deg zostaje w zakresie -180..180.
-                // Jest dobry do debugowania, ale nie do prostego różniczkowania,
-                // bo przy przejściu przez ±180° robi skok numeryczny.
                 yawWrappedDeg = NormalizeAngle(yawWrappedDeg);
 
-                // yaw_unwrapped_deg jest kątem ciągłym bez skoku przez ±180°.
-                // To tę wartość wysyłamy w UDP jako yaw_deg do regulatora.
                 float yawUnwrappedDeg = UpdateYawUnwrap(yawWrappedDeg);
+                float yawRateDps = _yawRateDps;
 
                 float correctedDistance = Mathf.Sqrt(x * x + y * y);
 
@@ -420,42 +533,46 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"ID{referenceTagId}: OK | ID{carTagId}: OK | FPS: {fps:F1}\n" +
                     $"Dystans: {correctedDistance:F3} m  RAW: {rawDistance:F3} m\n" +
                     $"X: {x:F3}  Y: {y:F3}  Z: {zError:F3}\n" +
-                    $"Yaw wrapped: {yawWrappedDeg:F1}° | unwrap: {yawUnwrappedDeg:F1}°\n" +
+                    $"Yaw: {yawWrappedDeg:F1}° | unwrap: {yawUnwrappedDeg:F1}° | rate: {yawRateDps:F1}°/s\n" +
+                    $"UDP: {sendMode} {targetIp}:{targetPort} src:{sourceId} rate:{sendRateHz:F0}Hz\n" +
                     $"CPU: {cpuToScreenMapping} | MX:{mirrorCpuX} MY:{mirrorCpuY}\n" +
                     $"Zmirror X:{mirrorZScreenX} Y:{mirrorZScreenY} | Zinv:{invertZAxisDirection}\n" +
-                    $"CMD deadman:{deadmanPressed} speed:{speedPercent}%";
+                    $"OperatorCtrl:{allowOperatorControl} deadman:{deadmanPressed} speed:{speedPercent}%";
 
-                _telemetry?.Send(
-                    x,
-                    y,
-                    zError,
-                    yawUnwrappedDeg,
-                    fpsHz,
-                    speedPercent,
-                    deadmanPressed,
-                    true
-                );
+
+                _latestPoseValid = true;
+                _lastValidPoseTime = now;
+
+                _latestX = x;
+                _latestY = y;
+                _latestZ = zError;
+                _latestYawWrappedDeg = yawWrappedDeg;
+                _latestYawUnwrappedDeg = yawUnwrappedDeg;
+                _latestYawRateDps = yawRateDps;
+                _latestFpsHz = fpsHz;
             }
             else
             {
                 MarkYawInvalid();
+
                 _debugText =
                     $"BUILD: {BUILD_MARK}\n" +
                     $"Szukam tagów...\n" +
                     $"ID{referenceTagId}: {(tRef.HasValue ? "OK" : "SZUKAM")} | " +
                     $"ID{carTagId}: {(tCar.HasValue ? "OK" : "SZUKAM")}\n" +
                     $"Wykryte: {foundCount} | CPU: {w}x{h}\n" +
+                    $"UDP: {sendMode} {targetIp}:{targetPort} src:{sourceId}\n" +
                     $"CPU: {cpuToScreenMapping} | MX:{mirrorCpuX} MY:{mirrorCpuY}";
-                _telemetry?.Send(
-                0f,
-                0f,
-                0f,
-                0f,
-                fpsHz,
-                speedPercent,
-                deadmanPressed,
-                false
-                );
+
+                _latestPoseValid = false;
+
+                _latestX = 0f;
+                _latestY = 0f;
+                _latestZ = 0f;
+                _latestYawWrappedDeg = 0f;
+                _latestYawUnwrappedDeg = 0f;
+                _latestYawRateDps = 0f;
+                _latestFpsHz = fpsHz;
             }
         }
     }
@@ -473,37 +590,83 @@ public class AprilTagMvpTracker : MonoBehaviour
 
     float UpdateYawUnwrap(float yawWrappedDeg)
     {
-        // Pierwszy poprawny pomiar po starcie albo po utracie valid.
-        // Nie dodajemy wtedy żadnej różnicy kąta, bo nie mamy poprzedniego
-        // wiarygodnego pomiaru do porównania.
+        float now = Time.realtimeSinceStartup;
+
         if (!_yawHistoryValid)
         {
+            float previousEquivalentWrapped = NormalizeAngle(_yawUnwrappedDeg);
+            float deltaToCurrent = Mathf.DeltaAngle(previousEquivalentWrapped, yawWrappedDeg);
+
+            _yawUnwrappedDeg += deltaToCurrent;
+
             _prevYawWrappedDeg = yawWrappedDeg;
-            _yawUnwrappedDeg = yawWrappedDeg;
+            _prevYawUnwrappedTime = now;
+            _yawRateDps = 0f;
             _yawHistoryValid = true;
 
             return _yawUnwrappedDeg;
         }
 
-        // Mathf.DeltaAngle zwraca najmniejszą różnicę kątową.
-        // Przykład:
-        // prev = +179°, current = -179° -> delta = +2°, a nie -358°.
         float deltaYaw = Mathf.DeltaAngle(_prevYawWrappedDeg, yawWrappedDeg);
+        float dt = Mathf.Max(now - _prevYawUnwrappedTime, 0.0001f);
 
         _yawUnwrappedDeg += deltaYaw;
+        _yawRateDps = deltaYaw / dt;
+
         _prevYawWrappedDeg = yawWrappedDeg;
+        _prevYawUnwrappedTime = now;
 
         return _yawUnwrappedDeg;
     }
 
     void MarkYawInvalid()
     {
-        // Gdy valid == false, nie aktualizujemy historii yaw.
-        // Nie traktujemy yaw=0 z ramki invalid jako prawdziwego pomiaru.
-        // Po ponownym odzyskaniu valid pierwszy poprawny pomiar tylko
-        // zainicjalizuje historię, bez doliczania skoku przez przerwę.
         _yawHistoryValid = false;
+        _yawRateDps = 0f;
     }
+
+    public void SaveUserSettings()
+    {
+        PlayerPrefs.SetInt(PrefUdpSendMode, (int)sendMode);
+        PlayerPrefs.SetString(PrefTargetIp, targetIp);
+        PlayerPrefs.SetInt(PrefTargetPort, targetPort);
+        PlayerPrefs.SetInt(PrefSourceId, sourceId);
+        PlayerPrefs.SetFloat(PrefSendRateHz, sendRateHz);
+        PlayerPrefs.SetInt(PrefAllowOperatorControl, allowOperatorControl ? 1 : 0);
+
+        PlayerPrefs.SetFloat(PrefFocalScale, focalScale);
+        PlayerPrefs.SetFloat(PrefMeasurementScale, measurementScale);
+        PlayerPrefs.SetInt(PrefCpuMapping, (int)cpuToScreenMapping);
+        PlayerPrefs.SetInt(PrefMirrorCpuX, mirrorCpuX ? 1 : 0);
+        PlayerPrefs.SetInt(PrefMirrorCpuY, mirrorCpuY ? 1 : 0);
+
+        PlayerPrefs.Save();
+
+        Debug.Log("[Settings] Saved user settings.");
+    }
+
+    public void LoadUserSettings()
+    {
+        sendMode = (UdpSendMode)PlayerPrefs.GetInt(PrefUdpSendMode, (int)sendMode);
+        targetIp = PlayerPrefs.GetString(PrefTargetIp, targetIp);
+        targetPort = PlayerPrefs.GetInt(PrefTargetPort, targetPort);
+        sourceId = PlayerPrefs.GetInt(PrefSourceId, sourceId);
+        sendRateHz = PlayerPrefs.GetFloat(PrefSendRateHz, sendRateHz);
+        allowOperatorControl = PlayerPrefs.GetInt(PrefAllowOperatorControl, allowOperatorControl ? 1 : 0) != 0;
+
+        focalScale = PlayerPrefs.GetFloat(PrefFocalScale, focalScale);
+        measurementScale = PlayerPrefs.GetFloat(PrefMeasurementScale, measurementScale);
+        cpuToScreenMapping = (CpuToScreenMapping)PlayerPrefs.GetInt(PrefCpuMapping, (int)cpuToScreenMapping);
+        mirrorCpuX = PlayerPrefs.GetInt(PrefMirrorCpuX, mirrorCpuX ? 1 : 0) != 0;
+        mirrorCpuY = PlayerPrefs.GetInt(PrefMirrorCpuY, mirrorCpuY ? 1 : 0) != 0;
+
+        sourceId = Mathf.Clamp(sourceId, 1, 4);
+        targetPort = Mathf.Clamp(targetPort, 1, 65535);
+        sendRateHz = Mathf.Clamp(sendRateHz, 1f, 60f);
+
+        Debug.Log("[Settings] Loaded user settings.");
+    }
+
 
     void OnGUI()
     {
@@ -518,12 +681,15 @@ public class AprilTagMvpTracker : MonoBehaviour
         );
     }
 
-
     void OnDestroy()
     {
+        UnsubscribeCameraFrames();
+
         _detector?.Dispose();
         _telemetry?.Dispose();
+
         _detector = null;
         _telemetry = null;
+
     }
 }

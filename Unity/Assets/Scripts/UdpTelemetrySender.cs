@@ -1,170 +1,256 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
+
+public enum UdpSendMode
+{
+    TextAT1,     // debug / cz³owiek czyta / Python / PC
+    BinaryATB1   // tryb sprzêtowy dla ESP32 / Simulink
+}
 
 /// <summary>
 /// Nadajnik UDP odpowiedzialny wy³¹cznie za wysy³anie telemetrii z Unity.
 ///
-/// Ramka UDP ma format tekstowy key:value:
+/// TextAT1:
+/// Format tekstowy do debugowania, np. Wireshark / Python / konsola.
 ///
-/// AT1;seq:7731;t:519.706;valid:1;deadman:1;move_en:1;speed_pct:89;x_m:0.1234;y_m:-0.0521;z_m:0.0000;yaw_deg:184.25;fps_hz:20;crc:XXXX
+/// AT1;seq:7731;t:519.706;source_id:1;valid:1;deadman:1;move_en:1;speed_pct:89;x_m:0.1234;y_m:-0.0521;z_m:0.0000;yaw_deg:179.99;yaw_deg_unwrapped:539.99;yaw_rate_dps:-123.45;fps_hz:20;crc:B7E4
 ///
-/// Znaczenie pól:
-/// AT1        - typ i wersja ramki: AprilTag telemetry v1
-/// seq        - numer kolejnej ramki, pozwala wykryæ zgubione pakiety UDP
-/// t          - czas dzia³ania aplikacji Unity [s]
-/// valid      - 1, jeœli widoczne s¹ oba tagi i pomiar pozycji jest poprawny
-/// deadman    - 1, jeœli u¿ytkownik trzyma przycisk zezwolenia na ruch
-/// move_en    - 1, jeœli auto naprawdê mo¿e jechaæ: valid && deadman && speed_pct > 0
-/// speed_pct  - limit / zadanie prêdkoœci w procentach 0-100
-/// x_m        - pozycja X wzglêdem bazy [m]
-/// y_m        - pozycja Y wzglêdem bazy [m]
-/// z_m        - ró¿nica wysokoœci / diagnostyczny b³¹d Z [m]
-/// yaw_deg    - ci¹g³y obrót pojazdu wzglêdem bazy [deg], po unwrap; u¿ywany przez regulator
-/// fps_hz     - FPS aplikacji, tylko diagnostyka [Hz]
-/// crc        - CRC16-CCITT-FALSE policzone z tekstu przed polem ;crc:
+/// BinaryATB1:
+/// Sta³a ramka binarna 42 bajty do ESP32 / Simulink.
+///
+/// Byte 0:      0xA1
+/// Byte 1:      0x1A
+/// Byte 2:      version = 1
+/// Byte 3:      source_id
+/// Byte 4-7:    seq uint32 LE
+/// Byte 8-11:   t_ms uint32 LE
+/// Byte 12:     flags uint8
+///               bit0 = valid
+///               bit1 = deadman
+///               bit2 = move_en
+/// Byte 13:     speed_pct uint8
+/// Byte 14:     fps_hz uint8
+/// Byte 15:     reserved = 0
+/// Byte 16-19:  x_m float32 LE
+/// Byte 20-23:  y_m float32 LE
+/// Byte 24-27:  z_m float32 LE
+/// Byte 28-31:  yaw_deg float32 LE, wrapped -180..180
+/// Byte 32-35:  yaw_deg_unwrapped float32 LE, ci¹g³y
+/// Byte 36-39:  yaw_rate_dps float32 LE
+/// Byte 40-41:  crc16 uint16 LE, CRC po bajtach 0..39
 /// </summary>
 public sealed class UdpTelemetrySender : IDisposable
 {
-    // Adres IP komputera / ESP, do którego wysy³amy UDP.
-    private readonly string _pcIp;
+    private const int BinaryFrameLength = 42;
 
-    // Port UDP odbiornika, np. 5005.
-    private readonly int _udpPort;
+    private const byte BinaryHeader0 = 0xA1;
+    private const byte BinaryHeader1 = 0x1A;
+    private const byte BinaryVersion = 1;
 
-    // Maksymalna czêstotliwoœæ wysy³ania ramek UDP.
-    private readonly float _sendRateHz;
+    private string _targetIp;
+    private int _targetPort;
+    private float _sendRateHz;
+    private UdpSendMode _sendMode;
+    private byte _sourceId;
+    private bool _debugBinaryLog;
 
-    // Obiekt .NET odpowiedzialny za wysy³kê UDP.
     private UdpClient _udp;
-
-    // Adres docelowy: IP + port.
     private IPEndPoint _endPoint;
 
-    // Czas ostatniej wys³anej ramki. U¿ywany do ograniczenia czêstotliwoœci.
     private float _lastSendTime;
+    private float _lastBinaryDebugLogTime;
 
-    // Numer kolejnej ramki. Zwiêkszany po ka¿dej poprawnej próbie wys³ania.
     private uint _sequence = 0;
 
-    // StringBuilder ogranicza liczbê tymczasowych stringów przy budowaniu ramki.
-    // 256 znaków wystarcza dla obecnego formatu z zapasem.
-    private readonly StringBuilder _frameBuilder = new StringBuilder(256);
+    private readonly StringBuilder _frameBuilder = new StringBuilder(512);
+    private readonly byte[] _textSendBuffer = new byte[1024];
+    private readonly byte[] _binarySendBuffer = new byte[BinaryFrameLength];
 
-    // Bufor bajtów u¿ywany ponownie przy ka¿dej wysy³ce.
-    // Dziêki temu nie tworzymy nowego byte[] co pakiet.
-    private readonly byte[] _sendBuffer = new byte[512];
-
-    // Flaga, ¿eby nie spamowaæ logów, jeœli ramka nagle zrobi siê za d³uga.
     private bool _bufferWarningShown = false;
 
-    public UdpTelemetrySender(string pcIp, int udpPort, float sendRateHz)
+    [StructLayout(LayoutKind.Explicit)]
+    private struct FloatUIntUnion
     {
-        _pcIp = pcIp;
-        _udpPort = udpPort;
-
-        // Zabezpieczenie przed dzieleniem przez 0, gdyby ktoœ ustawi³ 0 Hz.
-        _sendRateHz = Mathf.Max(sendRateHz, 1f);
-
-        Init();
+        [FieldOffset(0)] public float FloatValue;
+        [FieldOffset(0)] public uint UIntValue;
     }
 
-    private void Init()
+    public UdpTelemetrySender(
+        string targetIp,
+        int targetPort,
+        float sendRateHz,
+        UdpSendMode sendMode,
+        byte sourceId,
+        bool debugBinaryLog)
     {
+        Configure(
+            targetIp,
+            targetPort,
+            sendRateHz,
+            sendMode,
+            sourceId,
+            debugBinaryLog,
+            forceReconnect: true
+        );
+    }
+
+    public void Configure(
+        string targetIp,
+        int targetPort,
+        float sendRateHz,
+        UdpSendMode sendMode,
+        byte sourceId,
+        bool debugBinaryLog,
+        bool forceReconnect = false)
+    {
+        targetIp = string.IsNullOrWhiteSpace(targetIp) ? "127.0.0.1" : targetIp.Trim();
+        targetPort = Mathf.Clamp(targetPort, 1, 65535);
+        sendRateHz = Mathf.Max(sendRateHz, 1f);
+        sourceId = (byte)Mathf.Clamp(sourceId, 1, 4);
+
+        bool endpointChanged =
+            forceReconnect ||
+            _udp == null ||
+            _endPoint == null ||
+            _targetIp != targetIp ||
+            _targetPort != targetPort;
+
+        _targetIp = targetIp;
+        _targetPort = targetPort;
+        _sendRateHz = sendRateHz;
+        _sendMode = sendMode;
+        _sourceId = sourceId;
+        _debugBinaryLog = debugBinaryLog;
+
+        if (!endpointChanged)
+            return;
+
         try
         {
-            // Tworzymy klienta UDP.
-            // Nie robimy bind() po stronie Unity, bo Unity tylko wysy³a.
+            _udp?.Close();
             _udp = new UdpClient();
+            _endPoint = new IPEndPoint(IPAddress.Parse(_targetIp), _targetPort);
 
-            // Parsujemy IP i tworzymy koñcówkê docelow¹.
-            _endPoint = new IPEndPoint(IPAddress.Parse(_pcIp), _udpPort);
-
-            Debug.Log($"[UDP] OK: {_pcIp}:{_udpPort}");
+            Debug.Log($"[UDP] OK: {_targetIp}:{_targetPort}, mode={_sendMode}, source_id={_sourceId}");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[UDP] Init error: {e.Message}");
+            _udp = null;
+            _endPoint = null;
+
+            Debug.LogError($"[UDP] Configure error: {e.Message}");
         }
     }
 
-    /// <summary>
-    /// Wysy³a jedn¹ ramkê telemetrii.
-    ///
-    /// x, y, z s¹ wysy³ane jako metry z 4 miejscami po przecinku.
-    /// yaw jest wysy³any jako stopnie z 2 miejscami po przecinku.
-    /// fpsHz i speedPercent id¹ jako inty.
-    /// </summary>
     public void Send(
         float x,
         float y,
         float z,
-        float yaw,
+        float yawWrappedDeg,
+        float yawUnwrappedDeg,
+        float yawRateDps,
         int fpsHz,
         int speedPercent,
         bool deadmanPressed,
         bool poseValid)
     {
-        // Jeœli UDP nie zosta³o poprawnie utworzone, nie robimy nic.
         if (_udp == null || _endPoint == null)
             return;
 
-        // Ograniczenie czêstotliwoœci wysy³ania.
-        if (Time.time - _lastSendTime < 1f / _sendRateHz)
+        float now = Time.realtimeSinceStartup;
+
+        if (now - _lastSendTime < 1f / _sendRateHz)
             return;
 
         uint seq = _sequence++;
 
         int speedClamped = Mathf.Clamp(speedPercent, 0, 100);
+        int fpsClamped = Mathf.Clamp(fpsHz, 0, 255);
 
-        // Ruch jest dozwolony tylko wtedy, gdy:
-        // 1. u¿ytkownik trzyma deadmana,
-        // 2. pozycja z AprilTag jest wa¿na,
-        // 3. prêdkoœæ jest wiêksza od 0.
-        bool moveEnabled = deadmanPressed && poseValid && speedClamped > 0;
+        // move_en oznacza zgodê operatora na ruch, a nie poprawnoœæ pomiaru pozycji.
+        // Dziêki temu jeden telefon mo¿e dawaæ deadman/move_en,
+        // a drugi telefon mo¿e dawaæ valid=1 i pozycjê.
+        bool moveEnabled = deadmanPressed && speedClamped > 0;
 
         int validInt = poseValid ? 1 : 0;
         int deadmanInt = deadmanPressed ? 1 : 0;
         int moveEnabledInt = moveEnabled ? 1 : 0;
 
-        BuildFrame(
-            seq,
-            Time.time,
-            validInt,
-            deadmanInt,
-            moveEnabledInt,
-            speedClamped,
-            x,
-            y,
-            z,
-            yaw,
-            fpsHz
-        );
-
-        int byteCount = CopyAsciiToSendBuffer(_frameBuilder);
-
-        if (byteCount <= 0)
-            return;
-
         try
         {
-            _udp.Send(_sendBuffer, byteCount, _endPoint);
+            if (_sendMode == UdpSendMode.TextAT1)
+            {
+                BuildTextAT1(
+                    seq,
+                    now,
+                    validInt,
+                    deadmanInt,
+                    moveEnabledInt,
+                    speedClamped,
+                    x,
+                    y,
+                    z,
+                    yawWrappedDeg,
+                    yawUnwrappedDeg,
+                    yawRateDps,
+                    fpsClamped
+                );
+
+                int byteCount = CopyAsciiToSendBuffer(_frameBuilder, _textSendBuffer);
+
+                if (byteCount > 0)
+                    _udp.Send(_textSendBuffer, byteCount, _endPoint);
+            }
+            else
+            {
+                int byteCount = BuildBinaryATB1(
+                    seq,
+                    now,
+                    validInt,
+                    deadmanInt,
+                    moveEnabledInt,
+                    speedClamped,
+                    fpsClamped,
+                    x,
+                    y,
+                    z,
+                    yawWrappedDeg,
+                    yawUnwrappedDeg,
+                    yawRateDps
+                );
+
+                _udp.Send(_binarySendBuffer, byteCount, _endPoint);
+
+                if (_debugBinaryLog)
+                {
+                    DebugBinaryFrame(
+                        seq,
+                        validInt,
+                        deadmanInt,
+                        moveEnabledInt,
+                        speedClamped,
+                        fpsClamped,
+                        x,
+                        y,
+                        yawWrappedDeg,
+                        yawUnwrappedDeg
+                    );
+                }
+            }
         }
         catch (Exception e)
         {
             Debug.LogWarning($"[UDP] Send error: {e.Message}");
         }
 
-        _lastSendTime = Time.time;
+        _lastSendTime = now;
     }
 
-    /// <summary>
-    /// Buduje kompletn¹ ramkê tekstow¹ i dopisuje CRC.
-    /// CRC liczone jest z czêœci ramki przed polem ;crc:.
-    /// </summary>
-    private void BuildFrame(
+    private void BuildTextAT1(
         uint seq,
         float timeSeconds,
         int validInt,
@@ -174,21 +260,22 @@ public sealed class UdpTelemetrySender : IDisposable
         float x,
         float y,
         float z,
-        float yaw,
+        float yawWrappedDeg,
+        float yawUnwrappedDeg,
+        float yawRateDps,
         int fpsHz)
     {
         _frameBuilder.Clear();
 
-        // Czas trzymamy jako fixed-point: sekundy z 3 miejscami po przecinku.
         int timeMs = Mathf.RoundToInt(timeSeconds * 1000f);
 
-        // Pozycje fixed-point: metry z 4 miejscami po przecinku.
         int xScaled = Mathf.RoundToInt(x * 10000f);
         int yScaled = Mathf.RoundToInt(y * 10000f);
         int zScaled = Mathf.RoundToInt(z * 10000f);
 
-        // Yaw fixed-point: stopnie z 2 miejscami po przecinku.
-        int yawScaled = Mathf.RoundToInt(yaw * 100f);
+        int yawWrappedScaled = Mathf.RoundToInt(yawWrappedDeg * 100f);
+        int yawUnwrappedScaled = Mathf.RoundToInt(yawUnwrappedDeg * 100f);
+        int yawRateScaled = Mathf.RoundToInt(yawRateDps * 100f);
 
         _frameBuilder.Append("AT1;");
         _frameBuilder.Append("seq:").Append(seq).Append(';');
@@ -196,6 +283,8 @@ public sealed class UdpTelemetrySender : IDisposable
         _frameBuilder.Append("t:");
         AppendScaledInt(_frameBuilder, timeMs, 3);
         _frameBuilder.Append(';');
+
+        _frameBuilder.Append("source_id:").Append(_sourceId).Append(';');
 
         _frameBuilder.Append("valid:").Append(validInt).Append(';');
         _frameBuilder.Append("deadman:").Append(deadmanInt).Append(';');
@@ -215,12 +304,19 @@ public sealed class UdpTelemetrySender : IDisposable
         _frameBuilder.Append(';');
 
         _frameBuilder.Append("yaw_deg:");
-        AppendScaledInt(_frameBuilder, yawScaled, 2);
+        AppendScaledInt(_frameBuilder, yawWrappedScaled, 2);
+        _frameBuilder.Append(';');
+
+        _frameBuilder.Append("yaw_deg_unwrapped:");
+        AppendScaledInt(_frameBuilder, yawUnwrappedScaled, 2);
+        _frameBuilder.Append(';');
+
+        _frameBuilder.Append("yaw_rate_dps:");
+        AppendScaledInt(_frameBuilder, yawRateScaled, 2);
         _frameBuilder.Append(';');
 
         _frameBuilder.Append("fps_hz:").Append(fpsHz);
 
-        // CRC liczymy przed dopisaniem pola crc.
         ushort crc = ComputeCrc16CcittFalse(_frameBuilder);
 
         _frameBuilder.Append(";crc:");
@@ -229,14 +325,181 @@ public sealed class UdpTelemetrySender : IDisposable
         _frameBuilder.Append('\n');
     }
 
-    /// <summary>
-    /// Dopisuje liczbê ca³kowit¹ jako fixed-point.
-    ///
-    /// Przyk³ady:
-    /// scaledValue = 4125, decimals = 3 -> 4.125
-    /// scaledValue = -1360, decimals = 4 -> -0.1360
-    /// scaledValue = 11910, decimals = 2 -> 119.10
-    /// </summary>
+    private int BuildBinaryATB1(
+        uint seq,
+        float timeSeconds,
+        int validInt,
+        int deadmanInt,
+        int moveEnabledInt,
+        int speedPercent,
+        int fpsHz,
+        float x,
+        float y,
+        float z,
+        float yawWrappedDeg,
+        float yawUnwrappedDeg,
+        float yawRateDps)
+    {
+        Array.Clear(_binarySendBuffer, 0, BinaryFrameLength);
+
+        uint tMs = unchecked((uint)Mathf.FloorToInt(timeSeconds * 1000f));
+
+        byte flags = 0;
+
+        if (validInt != 0)
+            flags |= 1 << 0;
+
+        if (deadmanInt != 0)
+            flags |= 1 << 1;
+
+        if (moveEnabledInt != 0)
+            flags |= 1 << 2;
+
+        _binarySendBuffer[0] = BinaryHeader0;
+        _binarySendBuffer[1] = BinaryHeader1;
+        _binarySendBuffer[2] = BinaryVersion;
+        _binarySendBuffer[3] = _sourceId;
+
+        WriteUInt32LE(_binarySendBuffer, 4, seq);
+        WriteUInt32LE(_binarySendBuffer, 8, tMs);
+
+        _binarySendBuffer[12] = flags;
+        _binarySendBuffer[13] = (byte)Mathf.Clamp(speedPercent, 0, 100);
+        _binarySendBuffer[14] = (byte)Mathf.Clamp(fpsHz, 0, 255);
+        _binarySendBuffer[15] = 0;
+
+        WriteFloatLE(_binarySendBuffer, 16, x);
+        WriteFloatLE(_binarySendBuffer, 20, y);
+        WriteFloatLE(_binarySendBuffer, 24, z);
+        WriteFloatLE(_binarySendBuffer, 28, yawWrappedDeg);
+        WriteFloatLE(_binarySendBuffer, 32, yawUnwrappedDeg);
+        WriteFloatLE(_binarySendBuffer, 36, yawRateDps);
+
+        ushort crc = ComputeCrc16CcittFalse(_binarySendBuffer, 0, 40);
+        WriteUInt16LE(_binarySendBuffer, 40, crc);
+
+        return BinaryFrameLength;
+    }
+
+    private void DebugBinaryFrame(
+        uint seq,
+        int validInt,
+        int deadmanInt,
+        int moveEnabledInt,
+        int speedPercent,
+        int fpsHz,
+        float x,
+        float y,
+        float yawWrappedDeg,
+        float yawUnwrappedDeg)
+    {
+        float now = Time.realtimeSinceStartup;
+
+        if (now - _lastBinaryDebugLogTime < 1f)
+            return;
+
+        _lastBinaryDebugLogTime = now;
+
+        ushort crc = ReadUInt16LE(_binarySendBuffer, 40);
+
+        Debug.Log(
+            $"ATB1 len={BinaryFrameLength} " +
+            $"header={_binarySendBuffer[0]:X2} {_binarySendBuffer[1]:X2} " +
+            $"source={_sourceId} seq={seq} " +
+            $"valid={validInt} deadman={deadmanInt} move_en={moveEnabledInt} " +
+            $"speed={speedPercent} fps={fpsHz} " +
+            $"x={x:F3} y={y:F3} " +
+            $"yaw={yawWrappedDeg:F2} unwrap={yawUnwrappedDeg:F2} " +
+            $"crc={crc:X4}"
+        );
+    }
+
+    private static void WriteUInt16LE(byte[] buffer, int offset, ushort value)
+    {
+        buffer[offset + 0] = (byte)(value & 0xFF);
+        buffer[offset + 1] = (byte)((value >> 8) & 0xFF);
+    }
+
+    private static ushort ReadUInt16LE(byte[] buffer, int offset)
+    {
+        return (ushort)(buffer[offset + 0] | (buffer[offset + 1] << 8));
+    }
+
+    private static void WriteUInt32LE(byte[] buffer, int offset, uint value)
+    {
+        buffer[offset + 0] = (byte)(value & 0xFF);
+        buffer[offset + 1] = (byte)((value >> 8) & 0xFF);
+        buffer[offset + 2] = (byte)((value >> 16) & 0xFF);
+        buffer[offset + 3] = (byte)((value >> 24) & 0xFF);
+    }
+
+    private static void WriteFloatLE(byte[] buffer, int offset, float value)
+    {
+        FloatUIntUnion union = new FloatUIntUnion
+        {
+            FloatValue = value
+        };
+
+        WriteUInt32LE(buffer, offset, union.UIntValue);
+    }
+    private static readonly ushort[] Crc16CcittFalseTable = new ushort[256];
+
+    static UdpTelemetrySender()
+    {
+        for (int i = 0; i < 256; i++)
+        {
+            ushort crc = (ushort)(i << 8);
+
+            for (int j = 0; j < 8; j++)
+            {
+                if ((crc & 0x8000) != 0)
+                    crc = (ushort)((crc << 1) ^ 0x1021);
+                else
+                    crc <<= 1;
+            }
+
+            Crc16CcittFalseTable[i] = crc;
+        }
+    }
+    private static ushort ComputeCrc16CcittFalse(byte[] data, int offset, int length)
+    {
+        ushort crc = 0xFFFF;
+
+        for (int i = 0; i < length; i++)
+        {
+            byte tableIndex = (byte)((crc >> 8) ^ data[offset + i]);
+            crc = (ushort)((crc << 8) ^ Crc16CcittFalseTable[tableIndex]);
+        }
+
+        return crc;
+    }
+
+    private static ushort ComputeCrc16CcittFalse(StringBuilder sb)
+    {
+        ushort crc = 0xFFFF;
+
+        for (int i = 0; i < sb.Length; i++)
+        {
+            char c = sb[i];
+            byte b = c <= 0x7F ? (byte)c : (byte)'?';
+
+            byte tableIndex = (byte)((crc >> 8) ^ b);
+            crc = (ushort)((crc << 8) ^ Crc16CcittFalseTable[tableIndex]);
+        }
+
+        return crc;
+    }
+
+    private static void AppendHex4(StringBuilder sb, ushort value)
+    {
+        const string hex = "0123456789ABCDEF";
+
+        sb.Append(hex[(value >> 12) & 0x0F]);
+        sb.Append(hex[(value >> 8) & 0x0F]);
+        sb.Append(hex[(value >> 4) & 0x0F]);
+        sb.Append(hex[value & 0x0F]);
+    }
+
     private static void AppendScaledInt(StringBuilder sb, int scaledValue, int decimals)
     {
         if (scaledValue < 0)
@@ -260,7 +523,6 @@ public sealed class UdpTelemetrySender : IDisposable
 
         sb.Append('.');
 
-        // Dopisujemy zera wiod¹ce czêœci u³amkowej.
         int divider = factor / 10;
 
         while (divider > 0)
@@ -273,63 +535,13 @@ public sealed class UdpTelemetrySender : IDisposable
         }
     }
 
-    /// <summary>
-    /// CRC16-CCITT-FALSE:
-    /// - polynomial: 0x1021
-    /// - initial value: 0xFFFF
-    /// - no reflection
-    /// - no xorout
-    ///
-    /// Liczone po znakach ASCII z aktualnego StringBuildera.
-    /// </summary>
-    private static ushort ComputeCrc16CcittFalse(StringBuilder sb)
+    private int CopyAsciiToSendBuffer(StringBuilder sb, byte[] targetBuffer)
     {
-        ushort crc = 0xFFFF;
-
-        for (int i = 0; i < sb.Length; i++)
-        {
-            byte b = (byte)(sb[i] & 0x7F);
-
-            crc ^= (ushort)(b << 8);
-
-            for (int bit = 0; bit < 8; bit++)
-            {
-                bool msbSet = (crc & 0x8000) != 0;
-                crc <<= 1;
-
-                if (msbSet)
-                    crc ^= 0x1021;
-            }
-        }
-
-        return crc;
-    }
-
-    /// <summary>
-    /// Dopisuje 16-bitow¹ wartoœæ jako 4 znaki HEX.
-    /// Np. 0xA4EF -> A4EF.
-    /// </summary>
-    private static void AppendHex4(StringBuilder sb, ushort value)
-    {
-        const string hex = "0123456789ABCDEF";
-
-        sb.Append(hex[(value >> 12) & 0x0F]);
-        sb.Append(hex[(value >> 8) & 0x0F]);
-        sb.Append(hex[(value >> 4) & 0x0F]);
-        sb.Append(hex[value & 0x0F]);
-    }
-
-    /// <summary>
-    /// Kopiuje znaki ASCII ze StringBuildera do sta³ego bufora bajtów.
-    /// Nie tworzy nowej tablicy byte[] co ramkê.
-    /// </summary>
-    private int CopyAsciiToSendBuffer(StringBuilder sb)
-    {
-        if (sb.Length > _sendBuffer.Length)
+        if (sb.Length > targetBuffer.Length)
         {
             if (!_bufferWarningShown)
             {
-                Debug.LogWarning($"[UDP] Frame too long: {sb.Length} chars, buffer size: {_sendBuffer.Length}");
+                Debug.LogWarning($"[UDP] Text frame too long: {sb.Length} chars, buffer size: {targetBuffer.Length}");
                 _bufferWarningShown = true;
             }
 
@@ -339,10 +551,7 @@ public sealed class UdpTelemetrySender : IDisposable
         for (int i = 0; i < sb.Length; i++)
         {
             char c = sb[i];
-
-            // Ramka ma zawieraæ tylko ASCII.
-            // Gdyby przypadkiem trafi³ znak spoza ASCII, zamieniamy go na '?'.
-            _sendBuffer[i] = c <= 0x7F ? (byte)c : (byte)'?';
+            targetBuffer[i] = c <= 0x7F ? (byte)c : (byte)'?';
         }
 
         return sb.Length;

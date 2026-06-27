@@ -12,11 +12,8 @@
 /// </summary>
 public sealed class TrackerGuiOverlay
 {
-    // Jeden obiekt GUIContent używany wielokrotnie.
-    // Dzięki temu nie tworzymy new GUIContent(debugText) co klatkę.
     private readonly GUIContent _debugContent = new GUIContent();
 
-    // Kolory trzymane jako pola, żeby nie powtarzać new Color(...) w każdej metodzie rysującej.
     private readonly Color _menuBgColor = new Color(0f, 0f, 0f, 0.95f);
     private readonly Color _panelBgColor = new Color(0f, 0f, 0f, 0.75f);
     private readonly Color _debugBgColor = new Color(0f, 0f, 0f, 0.72f);
@@ -25,36 +22,22 @@ public sealed class TrackerGuiOverlay
     private readonly Color _deadmanOnColor = new Color(0f, 0.75f, 0.15f, 0.95f);
     private readonly Color _deadmanOffColor = new Color(0.75f, 0f, 0f, 0.95f);
 
-    // Style IMGUI tworzymy leniwie w EnsureStyles().
     private GUIStyle _debugStyle;
     private GUIStyle _menuStyle;
     private GUIStyle _buttonStyle;
     private GUIStyle _deadmanStyle;
     private GUIStyle _smallLabelStyle;
 
-    // Stan menu kalibracji.
     private bool _isMenuOpen = false;
-
-    // Stan rozwinięcia sekcji zaawansowanej overlayu.
     private bool _showAdvancedOverlay = false;
 
-    // Pozycja przewijania menu kalibracji.
     private Vector2 _menuScroll = Vector2.zero;
 
-    /// <summary>
-    /// Rozpoznaje orientację ekranu.
-    /// Używamy tego do innego layoutu w pionie i poziomie.
-    /// </summary>
     private bool IsPortrait()
     {
         return Screen.height > Screen.width;
     }
 
-    /// <summary>
-    /// Zwraca prostokąt menu kalibracji.
-    /// Funkcja jest wspólna dla menu i panelu DEADMAN,
-    /// żeby oba elementy wiedziały, gdzie znajduje się menu.
-    /// </summary>
     private Rect GetCalibrationMenuRect()
     {
         bool portrait = IsPortrait();
@@ -67,10 +50,6 @@ public sealed class TrackerGuiOverlay
         return new Rect(Screen.width - menuW - 30f, 100f, menuW, menuH);
     }
 
-    /// <summary>
-    /// Główna metoda rysowania GUI.
-    /// Wywoływana z AprilTagMvpTracker.OnGUI().
-    /// </summary>
     public void Draw(
         AprilTagMvpTracker tracker,
         string buildMark,
@@ -96,10 +75,6 @@ public sealed class TrackerGuiOverlay
         DrawDebugBox(debugText);
     }
 
-    /// <summary>
-    /// Tworzy style GUI tylko raz.
-    /// Nie robimy tego w każdej klatce, bo GUIStyle to obiekty referencyjne.
-    /// </summary>
     private void EnsureStyles()
     {
         if (_debugStyle != null &&
@@ -156,10 +131,6 @@ public sealed class TrackerGuiOverlay
         };
     }
 
-    /// <summary>
-    /// Przycisk otwierania/zamykania menu kalibracji.
-    /// GUIUtility.ExitGUI() jest tutaj celowe, bo zmiana menu zmienia liczbę kontrolek IMGUI.
-    /// </summary>
     private void DrawCalibrationButton()
     {
         Rect buttonRect = new Rect(Screen.width - 270f, 25f, 245f, 80f);
@@ -171,10 +142,6 @@ public sealed class TrackerGuiOverlay
         }
     }
 
-    /// <summary>
-    /// Główne menu kalibracyjne.
-    /// Zawiera parametry AprilTag, korektę skali, wizualizację i mapowanie CPU image -> ekran.
-    /// </summary>
     private void DrawCalibrationMenu(
         AprilTagMvpTracker tracker,
         string buildMark,
@@ -190,8 +157,6 @@ public sealed class TrackerGuiOverlay
         GUI.DrawTexture(menuRect, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        // Lewa kolumna z dużymi przyciskami przewijania.
-        // Zrobiona dlatego, że natywny scrollbar przy krawędzi był niewygodny na telefonie.
         float scrollColumnW = 78f;
 
         Rect leftScrollRect = new Rect(
@@ -212,7 +177,6 @@ public sealed class TrackerGuiOverlay
 
         GUILayout.BeginArea(contentRect);
 
-        // Ukrywamy natywny scrollbar, bo własny scroll jest po lewej.
         _menuScroll = GUILayout.BeginScrollView(_menuScroll, false, false);
 
         GUILayout.Label($"BUILD: {buildMark}", _menuStyle);
@@ -303,7 +267,6 @@ public sealed class TrackerGuiOverlay
 
         string advancedState = _showAdvancedOverlay ? "ON" : "OFF";
 
-        // Tutaj ExitGUI jest celowe, bo rozwinięcie sekcji zmienia layout menu.
         if (GUILayout.Button($"Zaawansowane ustawienia overlayu: {advancedState}", _buttonStyle, GUILayout.Height(60)))
         {
             _showAdvancedOverlay = !_showAdvancedOverlay;
@@ -398,16 +361,173 @@ public sealed class TrackerGuiOverlay
         tracker.mirrorCpuX = DrawOnOffButton("Mirror CPU X", tracker.mirrorCpuX);
         tracker.mirrorCpuY = DrawOnOffButton("Mirror CPU Y", tracker.mirrorCpuY);
 
+        GUILayout.Space(18);
+
+        DrawUdpSection(tracker);
+
         GUILayout.Space(30);
 
         GUILayout.EndScrollView();
         GUILayout.EndArea();
     }
 
-    /// <summary>
-    /// Duże przyciski przewijania menu po lewej stronie.
-    /// Przytrzymanie przycisku przewija menu płynnie.
-    /// </summary>
+    private void DrawUdpSection(AprilTagMvpTracker tracker)
+    {
+        GUILayout.Label("--- 5. UDP Hardware Output ---", _menuStyle);
+
+        GUILayout.Label($"Send Mode: {tracker.sendMode}", _menuStyle);
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("TextAT1", _buttonStyle, GUILayout.Height(50)))
+        {
+            tracker.sendMode = UdpSendMode.TextAT1;
+            GUIUtility.ExitGUI();
+        }
+
+        if (GUILayout.Button("BinaryATB1", _buttonStyle, GUILayout.Height(50)))
+        {
+            tracker.sendMode = UdpSendMode.BinaryATB1;
+            GUIUtility.ExitGUI();
+        }
+
+        GUILayout.EndHorizontal();
+
+        GUILayout.Space(8);
+
+        GUILayout.Label("Device presets:", _menuStyle);
+
+        if (GUILayout.Button("Phone 1 Operator / Port 5005", _buttonStyle, GUILayout.Height(54)))
+        {
+            tracker.sourceId = 1;
+            tracker.targetPort = 5005;
+            tracker.allowOperatorControl = true;
+            tracker.sendMode = UdpSendMode.BinaryATB1;
+            tracker.SaveUserSettings();
+            GUIUtility.ExitGUI();
+        }
+
+        if (GUILayout.Button("Phone 2 Observer / Same Port 5005", _buttonStyle, GUILayout.Height(54)))
+        {
+            tracker.sourceId = 2;
+            tracker.targetPort = 5005;
+            tracker.allowOperatorControl = false;
+            tracker.sendMode = UdpSendMode.BinaryATB1;
+            tracker.SaveUserSettings();
+            GUIUtility.ExitGUI();
+        }
+
+        if (GUILayout.Button("Phone 2 Observer / Split Port 5006", _buttonStyle, GUILayout.Height(54)))
+        {
+            tracker.sourceId = 2;
+            tracker.targetPort = 5006;
+            tracker.allowOperatorControl = false;
+            tracker.sendMode = UdpSendMode.BinaryATB1;
+            tracker.SaveUserSettings();
+            GUIUtility.ExitGUI();
+        }
+
+        if (GUILayout.Button("Phone 2 Co-Operator / Port 5005", _buttonStyle, GUILayout.Height(54)))
+        {
+            tracker.sourceId = 2;
+            tracker.targetPort = 5005;
+            tracker.allowOperatorControl = true;
+            tracker.sendMode = UdpSendMode.BinaryATB1;
+            tracker.SaveUserSettings();
+            GUIUtility.ExitGUI();
+        }
+
+        GUILayout.Space(8);
+
+        GUILayout.Label("Target IP:", _menuStyle);
+        tracker.targetIp = GUILayout.TextField(tracker.targetIp, GUILayout.Height(46));
+
+        GUILayout.Label($"UDP Port: {tracker.targetPort}", _menuStyle);
+        string portText = GUILayout.TextField(tracker.targetPort.ToString(), GUILayout.Height(46));
+
+        if (int.TryParse(portText, out int parsedPort))
+            tracker.targetPort = Mathf.Clamp(parsedPort, 1, 65535);
+
+        GUILayout.Space(8);
+
+        GUILayout.Label($"Source ID: {tracker.sourceId}", _menuStyle);
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("Phone 1", _buttonStyle, GUILayout.Height(50)))
+        {
+            tracker.sourceId = 1;
+            GUIUtility.ExitGUI();
+        }
+
+        if (GUILayout.Button("Phone 2", _buttonStyle, GUILayout.Height(50)))
+        {
+            tracker.sourceId = 2;
+            GUIUtility.ExitGUI();
+        }
+
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("Phone 3", _buttonStyle, GUILayout.Height(50)))
+        {
+            tracker.sourceId = 3;
+            GUIUtility.ExitGUI();
+        }
+
+        if (GUILayout.Button("Phone 4", _buttonStyle, GUILayout.Height(50)))
+        {
+            tracker.sourceId = 4;
+            GUIUtility.ExitGUI();
+        }
+
+        GUILayout.EndHorizontal();
+
+        tracker.sourceId = Mathf.RoundToInt(
+            GUILayout.HorizontalSlider(tracker.sourceId, 1, 4, GUILayout.Height(44))
+        );
+        tracker.sourceId = Mathf.Clamp(tracker.sourceId, 1, 4);
+
+        GUILayout.Label($"Send Rate: {tracker.sendRateHz:F0} Hz", _menuStyle);
+
+        tracker.sendRateHz = GUILayout.HorizontalSlider(
+            tracker.sendRateHz,
+            1f,
+            60f,
+            GUILayout.Height(44)
+        );
+
+        tracker.allowOperatorControl = DrawOnOffButton($"Operator Control / deadman source",tracker.allowOperatorControl);
+
+        tracker.debugBinaryUdp = GUILayout.Toggle(
+            tracker.debugBinaryUdp,
+            "Debug Binary Log",
+            GUILayout.Height(44)
+        );
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("SAVE SETTINGS", _buttonStyle, GUILayout.Height(52)))
+        {
+            tracker.SaveUserSettings();
+            GUIUtility.ExitGUI();
+        }
+
+        if (GUILayout.Button("LOAD SETTINGS", _buttonStyle, GUILayout.Height(52)))
+        {
+            tracker.LoadUserSettings();
+            GUIUtility.ExitGUI();
+        }
+
+        GUILayout.EndHorizontal();
+
+        GUILayout.Space(8);
+
+        GUILayout.Label($"Deadman: {(tracker.deadmanPressed ? 1 : 0)}", _menuStyle);
+        GUILayout.Label($"Speed: {tracker.speedPercent}%", _menuStyle);
+    }
+
     private void DrawLeftScrollControls(Rect rect)
     {
         GUI.color = _scrollBgColor;
@@ -427,9 +547,6 @@ public sealed class TrackerGuiOverlay
         GUI.Label(labelRect, "SCROLL", _smallLabelStyle);
     }
 
-    /// <summary>
-    /// Rysuje suwak float z większym obszarem dotyku.
-    /// </summary>
     private float DrawFloatSlider(string label, float value, float min, float max)
     {
         GUILayout.Label(label, _menuStyle);
@@ -446,55 +563,34 @@ public sealed class TrackerGuiOverlay
         return value;
     }
 
-    /// <summary>
-    /// Przycisk ON/OFF dla booli.
-    /// Bez GUIUtility.ExitGUI(), bo zmiana wartości nie przebudowuje layoutu.
-    /// </summary>
     private bool DrawOnOffButton(string label, bool currentValue)
     {
         string state = currentValue ? "ON" : "OFF";
         string text = $"{label}: {state}";
 
         if (GUILayout.Button(text, _buttonStyle, GUILayout.Height(60)))
-        {
             currentValue = !currentValue;
-        }
 
         return currentValue;
     }
 
-    /// <summary>
-    /// Przycisk zmiany kierunku osi.
-    /// Używany dla X/Y/Z, gdzie NORMALNY/ODWRÓCONY wpływa na znak i/lub zwrot wektora.
-    /// </summary>
     private bool DrawDirectionButton(string label, bool inverted)
     {
         string state = inverted ? "ODWRÓCONY" : "NORMALNY";
         string text = $"{label}: {state}";
 
         if (GUILayout.Button(text, _buttonStyle, GUILayout.Height(64)))
-        {
             inverted = !inverted;
-        }
 
         return inverted;
     }
 
-    /// <summary>
-    /// Przycisk wyboru trybu mapowania CPU image -> ekran.
-    /// Aktywny tryb jest pokazywany w nawiasach kwadratowych.
-    /// </summary>
     private bool DrawMappingButton(string label, bool isActive)
     {
         string text = isActive ? $"[{label}]" : label;
         return GUILayout.Button(text, _buttonStyle, GUILayout.Height(58));
     }
 
-    /// <summary>
-    /// Panel sterowania pojazdem:
-    /// - DEADMAN jako przycisk trzymany palcem,
-    /// - speed limit jako procent 0-100.
-    /// </summary>
     private void DrawDriveControlPanel(AprilTagMvpTracker tracker)
     {
         bool portrait = IsPortrait();
@@ -506,8 +602,6 @@ public sealed class TrackerGuiOverlay
 
         if (portrait)
         {
-            // Stała szerokość w pionie, niezależna od otwarcia menu.
-            // Szerokość liczona tak, żeby nie wchodzić pod menu po prawej.
             Rect menuRect = GetCalibrationMenuRect();
             panelW = Mathf.Clamp(menuRect.x - margin * 2f, 285f, 430f);
         }
@@ -529,8 +623,6 @@ public sealed class TrackerGuiOverlay
             72f
         );
 
-        // DEADMAN działa jako przycisk przytrzymywany.
-        // Jeśli palec/mysz jest wewnątrz prostokąta, deadmanPressed = true.
         tracker.deadmanPressed = IsPointerDownInside(deadmanRect);
 
         GUI.color = tracker.deadmanPressed ? _deadmanOnColor : _deadmanOffColor;
@@ -563,10 +655,6 @@ public sealed class TrackerGuiOverlay
         tracker.speedPercent = Mathf.RoundToInt(speedSliderValue);
     }
 
-    /// <summary>
-    /// Zielony debug box z aktualną telemetrią.
-    /// Tło dopasowuje wysokość do liczby linii tekstu.
-    /// </summary>
     private void DrawDebugBox(string debugText)
     {
         bool portrait = IsPortrait();
@@ -591,14 +679,11 @@ public sealed class TrackerGuiOverlay
         }
         else
         {
-            // W landscape celowo używamy Screen.width, nie safe.width,
-            // żeby safeArea nie odsuwała ramki zbyt daleko od lewej krawędzi.
             width = Mathf.Min(Screen.width * 0.76f - marginXLandscapePx, 1350f);
         }
 
         width = Mathf.Max(width, 320f);
 
-        // Bez new GUIContent(debugText) co klatkę.
         _debugContent.text = debugText;
 
         float textHeight = _debugStyle.CalcHeight(_debugContent, width - paddingX * 2f);
@@ -625,10 +710,6 @@ public sealed class TrackerGuiOverlay
         );
     }
 
-    /// <summary>
-    /// Sprawdza, czy aktualnie użytkownik trzyma palec/mysz wewnątrz podanego prostokąta.
-    /// Używane dla przycisku DEADMAN.
-    /// </summary>
     private bool IsPointerDownInside(Rect rect)
     {
         if (Input.touchCount > 0)
