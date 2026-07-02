@@ -420,3 +420,35 @@ UART_BAUDRATE = 230400;
 UART_FRAME_SIZE = 38;             % ESP32 -> STM32, planned
 UART_SERIAL_PORT = 2;     % 0 = USB/debug, 1/2 = hardware UART, zależnie od płytki
 UART_BAUDRATE = 230400;
+
+%% =========================================================
+%  ESP32 UDP diagnostics configuration
+% =========================================================
+
+UDP_DIAG_SOURCE_ID = uint8(1);       % source_id pokazywany na debug displayach
+UDP_DIAG_FRESH_MS = uint32(300);     % źródło świeże, jeśli age <= 300 ms
+UDP_DIAG_SESSION_GAP_MS = uint32(2000); % gap > 2000 ms = nowa sesja, nie packet loss
+
+%% =========================================================
+%  ESP32 UDP diagnostics configuration
+% =========================================================
+
+UDP_DIAG_SOURCE_ID = uint8(1);       % source_id pokazywany na debug displayach
+UDP_DIAG_FRESH_MS = uint32(300);     % źródło świeże, jeśli age <= 300 ms
+UDP_DIAG_SESSION_GAP_MS = uint32(2000); % gap > 2000 ms = nowa sesja, nie packet loss
+
+%% =========================================================
+%  ESP32 UDP diagnostics TX configuration
+% =========================================================
+
+UDP_DIAG_SOURCE_ID = uint8(1);
+
+UDP_DIAG_TX_ENABLE = uint8(1);
+UDP_DIAG_TX_PERIOD_MS = uint32(5000);
+
+% Diagnostyka idzie broadcastem po tej samej sieci i na ten sam port
+% co ATB1, ale rozróżniamy ją po innym headerze i długości ramki.
+UDP_DIAG_TARGET_IP = '192.168.0.255';
+UDP_DIAG_TARGET_PORT = UDP_PORT_A;   % 5005
+
+UDP_DIAG_PAYLOAD_SIZE = 96;

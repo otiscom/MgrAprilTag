@@ -55,3 +55,11 @@ Thumbs.db
 
 # Plastic SCM / Unity Version Control
 **/.plastic/
+
+# ESP32 generated deployment artifacts
+Simulink/HIL/ESP32/**/*.bin
+Simulink/HIL/ESP32/**/*.elf
+Simulink/HIL/ESP32/**/*.map
+
+# UDP logger output
+Tools/UDP_Python/*.csv

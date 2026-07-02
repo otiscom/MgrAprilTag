@@ -133,9 +133,27 @@ public sealed class UdpTelemetrySender : IDisposable
         {
             _udp?.Close();
             _udp = new UdpClient();
-            _endPoint = new IPEndPoint(IPAddress.Parse(_targetIp), _targetPort);
 
-            Debug.Log($"[UDP] OK: {_targetIp}:{_targetPort}, mode={_sendMode}, source_id={_sourceId}");
+            IPAddress targetAddress = IPAddress.Parse(_targetIp);
+
+            bool isBroadcast = IsBroadcastAddress(targetAddress);
+
+            if (isBroadcast)
+            {
+                _udp.EnableBroadcast = true;
+                _udp.Client.SetSocketOption(
+                    SocketOptionLevel.Socket,
+                    SocketOptionName.Broadcast,
+                    true
+                );
+            }
+
+            _endPoint = new IPEndPoint(targetAddress, _targetPort);
+
+            Debug.Log(
+                $"[UDP] OK: {_targetIp}:{_targetPort}, mode={_sendMode}, " +
+                $"source_id={_sourceId}, broadcast={(isBroadcast ? 1 : 0)}"
+            );
         }
         catch (Exception e)
         {
@@ -535,6 +553,25 @@ public sealed class UdpTelemetrySender : IDisposable
         }
     }
 
+    private static bool IsBroadcastAddress(IPAddress address)
+    {
+        if (address == null)
+            return false;
+
+        byte[] bytes = address.GetAddressBytes();
+
+        // 255.255.255.255
+        if (address.Equals(IPAddress.Broadcast))
+            return true;
+
+        // Typowy broadcast podsieci, np. 192.168.1.255 albo 192.168.43.255.
+        // To wystarczy do Twoich testów LAN/hotspot.
+        if (bytes.Length == 4 && bytes[3] == 255)
+            return true;
+
+        return false;
+    }
+
     private int CopyAsciiToSendBuffer(StringBuilder sb, byte[] targetBuffer)
     {
         if (sb.Length > targetBuffer.Length)
@@ -565,3 +602,4 @@ public sealed class UdpTelemetrySender : IDisposable
         _endPoint = null;
     }
 }
+
