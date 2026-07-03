@@ -7,7 +7,8 @@ Logger UDP dla projektu Unity/Android/AprilTag -> ESP32/Simulink -> STM32.
 
 Rozpoznaje na jednym porcie UDP 5005:
   - ATB1 z Unity: len=42,  header A1 1A
-  - ATD1 z ESP32: len=96,  header AD D1
+  - ATD1 z ESP32: len=96, header AD D1
+  - ATD1 + snapshot ATU1: len=134 (96 + 38), header AD D1
   - stare tekstowe AT1; z wcześniejszej wersji debugowej
   - UNKNOWN dla pozostałych ramek
 
@@ -33,6 +34,7 @@ UDP_PORT = 5005
 LOG_DIR = Path(".")
 ATD1_CSV_NAME = "esp32_udp_diag.csv"
 ATB1_CSV_NAME = "unity_atb1_rx.csv"
+ATU1_SNAPSHOT_CSV_NAME = "esp32_uart_snapshot.csv"
 
 # ATD1 zapisujemy zawsze. ATB1 można wyłączyć, jeżeli Unity wysyła tylko do ESP32
 # i PC ma logować wyłącznie diagnostykę z ESP32.
@@ -63,6 +65,13 @@ ATD1_H1 = 0xD1
 ATD1_VERSION = 1
 # 4 bajty nagłówka + 21 x uint32 + 8 x uint8 = 96 bajtów
 ATD1_STRUCT = struct.Struct("<BBBB" + "I" * 21 + "BBBBBBBB")
+
+ATU1_LEN = 38
+ATD1_WITH_ATU1_LEN = ATD1_LEN + ATU1_LEN
+ATU1_H0 = 0xA5
+ATU1_H1 = 0x5A
+ATU1_VERSION = 1
+ATU1_STRUCT = struct.Struct("<BBBBIIBBBBfffffH")
 
 LAST_ERROR_CODE_TEXT = {
     0: "none_or_unknown",
@@ -138,6 +147,39 @@ ATB1_COLUMNS = [
     "crc_ok",
 ]
 
+ATU1_SNAPSHOT_COLUMNS = [
+    "pc_time_iso",
+    "pc_time_unix",
+    "sender_ip",
+    "sender_port",
+    "diag_source_id",
+    "diag_tx_counter",
+    "version",
+    "source_id",
+    "seq",
+    "unity_t_ms",
+    "flags",
+    "pose_valid",
+    "deadman",
+    "move_en",
+    "data_ok",
+    "safe_to_drive",
+    "hold_mode",
+    "soft_decay",
+    "hard_stop",
+    "speed_pct",
+    "fps_hz",
+    "x_m",
+    "y_m",
+    "z_m",
+    "yaw_deg_unwrapped",
+    "yaw_rate_dps",
+    "crc_rx",
+    "crc_calc",
+    "crc_ok",
+    "raw_hex",
+]
+
 
 # ============================================================
 # CRC - zgodne z Unity/ESP32: CRC-16/CCITT-FALSE
@@ -183,7 +225,15 @@ def is_atb1(data: bytes) -> bool:
 
 
 def is_atd1(data: bytes) -> bool:
-    return len(data) == ATD1_LEN and data[0] == ATD1_H0 and data[1] == ATD1_H1
+    return (
+        len(data) in (ATD1_LEN, ATD1_WITH_ATU1_LEN)
+        and data[0] == ATD1_H0
+        and data[1] == ATD1_H1
+    )
+
+
+def has_atu1_snapshot(data: bytes) -> bool:
+    return len(data) == ATD1_WITH_ATU1_LEN
 
 
 # ============================================================
@@ -379,6 +429,91 @@ def decode_atd1(data: bytes, addr):
 
 
 # ============================================================
+# Dekodowanie snapshotu ATU1 doklejonego do ATD1
+# ============================================================
+
+def decode_atu1_snapshot(data: bytes, addr, diag_source_id: int, diag_tx_counter: int):
+    if len(data) != ATU1_LEN:
+        raise ValueError(f"ATU1 snapshot ma {len(data)} B, oczekiwano {ATU1_LEN} B")
+
+    pc_time_iso, pc_time_unix = pc_time_fields()
+
+    (
+        h0,
+        h1,
+        version,
+        source_id,
+        seq,
+        unity_t_ms,
+        flags,
+        speed_pct,
+        fps_hz,
+        reserved,
+        x_m,
+        y_m,
+        z_m,
+        yaw_deg_unwrapped,
+        yaw_rate_dps,
+        crc_rx,
+    ) = ATU1_STRUCT.unpack(data)
+
+    crc_calc = crc16_ccitt_false(data[:36])
+    crc_ok = crc_rx == crc_calc
+    header_ok = h0 == ATU1_H0 and h1 == ATU1_H1
+
+    pose_valid = 1 if (flags & (1 << 0)) else 0
+    deadman = 1 if (flags & (1 << 1)) else 0
+    move_en = 1 if (flags & (1 << 2)) else 0
+    data_ok = 1 if (flags & (1 << 3)) else 0
+    safe_to_drive = 1 if (flags & (1 << 4)) else 0
+    hold_mode = 1 if (flags & (1 << 5)) else 0
+    soft_decay = 1 if (flags & (1 << 6)) else 0
+    hard_stop = 1 if (flags & (1 << 7)) else 0
+
+    row = {
+        "pc_time_iso": pc_time_iso,
+        "pc_time_unix": f"{pc_time_unix:.6f}",
+        "sender_ip": addr[0],
+        "sender_port": addr[1],
+        "diag_source_id": diag_source_id,
+        "diag_tx_counter": diag_tx_counter,
+        "version": version,
+        "source_id": source_id,
+        "seq": seq,
+        "unity_t_ms": unity_t_ms,
+        "flags": flags,
+        "pose_valid": pose_valid,
+        "deadman": deadman,
+        "move_en": move_en,
+        "data_ok": data_ok,
+        "safe_to_drive": safe_to_drive,
+        "hold_mode": hold_mode,
+        "soft_decay": soft_decay,
+        "hard_stop": hard_stop,
+        "speed_pct": speed_pct,
+        "fps_hz": fps_hz,
+        "x_m": f"{x_m:.6f}",
+        "y_m": f"{y_m:.6f}",
+        "z_m": f"{z_m:.6f}",
+        "yaw_deg_unwrapped": f"{yaw_deg_unwrapped:.6f}",
+        "yaw_rate_dps": f"{yaw_rate_dps:.6f}",
+        "crc_rx": f"{crc_rx:04X}",
+        "crc_calc": f"{crc_calc:04X}",
+        "crc_ok": 1 if crc_ok else 0,
+        "raw_hex": hex_spaced(data),
+    }
+
+    info = dict(row)
+    info["header_ok"] = header_ok
+    info["crc_ok_bool"] = crc_ok
+    info["x_m_float"] = x_m
+    info["y_m_float"] = y_m
+    info["yaw_float"] = yaw_deg_unwrapped
+
+    return row, info
+
+
+# ============================================================
 # Lokalne statystyki loggera PC
 # ============================================================
 
@@ -388,6 +523,8 @@ class LocalStats:
         self.atb1_crc_ok = 0
         self.atb1_crc_bad = 0
         self.atd1_total = 0
+        self.atu1_snapshot_total = 0
+        self.atu1_snapshot_crc_bad = 0
         self.text_at1_total = 0
         self.unknown_total = 0
         self.start_time = time.time()
@@ -400,6 +537,8 @@ class LocalStats:
         print(f"ATB1 crc ok:         {self.atb1_crc_ok}")
         print(f"ATB1 crc bad:        {self.atb1_crc_bad}")
         print(f"ATD1 total:          {self.atd1_total}")
+        print(f"ATU1 snapshot total: {self.atu1_snapshot_total}")
+        print(f"ATU1 snapshot bad:   {self.atu1_snapshot_crc_bad}")
         print(f"TEXT AT1 total:      {self.text_at1_total}")
         print(f"UNKNOWN total:       {self.unknown_total}")
         print("================================================")
@@ -414,12 +553,14 @@ def main():
 
     atd1_csv_path = LOG_DIR / ATD1_CSV_NAME
     atb1_csv_path = LOG_DIR / ATB1_CSV_NAME
+    atu1_snapshot_csv_path = LOG_DIR / ATU1_SNAPSHOT_CSV_NAME
 
     stats = LocalStats()
 
     sock = None
     atd1_file = None
     atb1_file = None
+    atu1_snapshot_file = None
 
     try:
         # UDP socket
@@ -436,6 +577,12 @@ def main():
         atd1_writer.writeheader()
         atd1_file.flush()
 
+        # CSV z tymczasowym snapshotem ATU1 doklejonym do ATD1
+        atu1_snapshot_file = open(atu1_snapshot_csv_path, mode="w", newline="", encoding="utf-8")
+        atu1_snapshot_writer = csv.DictWriter(atu1_snapshot_file, fieldnames=ATU1_SNAPSHOT_COLUMNS)
+        atu1_snapshot_writer.writeheader()
+        atu1_snapshot_file.flush()
+
         # CSV ATB1 opcjonalnie
         atb1_writer = None
         if LOG_ATB1_TO_CSV:
@@ -447,6 +594,7 @@ def main():
         print("Serwer UDP aktywny.")
         print(f"Slucham na {UDP_IP}:{UDP_PORT}")
         print(f"CSV ATD1: {atd1_csv_path}")
+        print(f"CSV ATU1 snapshot: {atu1_snapshot_csv_path}")
         if LOG_ATB1_TO_CSV:
             print(f"CSV ATB1: {atb1_csv_path}")
         else:
@@ -494,16 +642,48 @@ def main():
 
             if is_atd1(data):
                 stats.atd1_total += 1
-                row, info = decode_atd1(data, addr)
+
+                # Pierwsze 96 B to zawsze właściwe ATD1.
+                atd1_payload = data[:ATD1_LEN]
+                row, info = decode_atd1(atd1_payload, addr)
 
                 atd1_writer.writerow(row)
                 atd1_file.flush()
+
+                snapshot_note = ""
+
+                # Jeżeli ramka ma 134 B, końcowe 38 B to snapshot ATU1.
+                if has_atu1_snapshot(data):
+                    atu1_payload = data[ATD1_LEN:ATD1_WITH_ATU1_LEN]
+                    try:
+                        atu1_row, atu1_info = decode_atu1_snapshot(
+                            atu1_payload,
+                            addr,
+                            diag_source_id=info["source_id"],
+                            diag_tx_counter=info["tx_counter"],
+                        )
+                        atu1_snapshot_writer.writerow(atu1_row)
+                        atu1_snapshot_file.flush()
+
+                        stats.atu1_snapshot_total += 1
+                        if not atu1_info["header_ok"] or not atu1_info["crc_ok_bool"]:
+                            stats.atu1_snapshot_crc_bad += 1
+
+                        snapshot_note = (
+                            f" | ATU1 src={atu1_info['source_id']} seq={atu1_info['seq']} "
+                            f"flags=0x{int(atu1_info['flags']):02X} "
+                            f"safe={atu1_info['safe_to_drive']} hard={atu1_info['hard_stop']} "
+                            f"speed={atu1_info['speed_pct']} crc_ok={atu1_info['crc_ok_bool']}"
+                        )
+                    except (ValueError, struct.error) as exc:
+                        stats.atu1_snapshot_crc_bad += 1
+                        snapshot_note = f" | ATU1 snapshot decode error: {exc}"
 
                 if PRINT_ATD1_EVERY_PACKET:
                     version_note = "" if info["version"] == ATD1_VERSION else f" ver_bad={info['version']}"
                     print(
                         f"ATD1 from ESP32 {addr[0]}:{addr[1]}: "
-                        f"src={info['source_id']} tx={info['tx_counter']} "
+                        f"len={len(data)} src={info['source_id']} tx={info['tx_counter']} "
                         f"rx={info['rx_ok_total']} lost={info['seq_lost_total']} "
                         f"dup={info['duplicate_or_old_total']} crc_bad={info['crc_bad_total']} "
                         f"gap={info['last_gap_ms']}ms max_gap={info['max_gap_ms']}ms "
@@ -511,7 +691,7 @@ def main():
                         f"valid_ratio={info['valid_ratio_percent']}% "
                         f"session={info['session_id']} fresh={info['fresh_300ms']} "
                         f"err={info['last_error_code']}({info['last_error_text']})"
-                        f"{version_note}"
+                        f"{version_note}{snapshot_note}"
                     )
 
                 continue
@@ -536,11 +716,16 @@ def main():
             atb1_file.flush()
             atb1_file.close()
 
+        if atu1_snapshot_file is not None:
+            atu1_snapshot_file.flush()
+            atu1_snapshot_file.close()
+
         if sock is not None:
             sock.close()
 
         stats.print_summary()
         print(f"CSV ATD1 zapisany: {atd1_csv_path}")
+        print(f"CSV ATU1 snapshot zapisany: {atu1_snapshot_csv_path}")
         if LOG_ATB1_TO_CSV:
             print(f"CSV ATB1 zapisany: {atb1_csv_path}")
 
