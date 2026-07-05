@@ -397,3 +397,40 @@ delta_corr_max_rad = deg2rad(8);
 % Jeżeli regulator jest zbyt powolny, ale stabilny:
 %   najpierw zwiększ Kp_radius_pid,
 %   dopiero potem ewentualnie Kp_psi_pid.
+%% =========================================================
+% STM32 UART ATU1
+% ==========================================================
+
+Ts_base = 0.005;       % odbiór UART i parser: 200 Hz
+Ts_control = 0.020;    % regulator: 50 Hz
+
+ATU1_RX_BUFFER_LENGTH = 64;
+
+UART_TIMEOUT_MS = 100;
+
+UART_TIMEOUT_TICKS = uint16(ceil( ...
+    UART_TIMEOUT_MS / (Ts_base * 1000.0) ...
+));
+
+%% Ograniczenia sterowania podczas pierwszych testów
+
+delta_stm32_max_rad = single(deg2rad(10.0));
+speed_stm32_max_pct = single(10.0);
+
+%% Konwersja jednostek
+
+DEG_TO_RAD_F32 = single(pi / 180.0);
+
+%% Regulator promienia
+Kp_radius_pid = single(0.65);
+Ki_radius_pid = single(0.0);
+Kd_radius_pid = single(0.0);
+
+psi_offset_max_rad = single(deg2rad(18.0));
+
+%% Regulator yaw
+Kp_psi_pid = single(1.0);
+Ki_psi_pid = single(0.0);
+Kd_psi_pid = single(0.0);
+
+delta_corr_max_rad = single(deg2rad(8.0));
