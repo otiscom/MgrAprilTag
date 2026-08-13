@@ -66,6 +66,21 @@ public class AprilTagMvpTracker : MonoBehaviour
     [Tooltip("Czas odliczania przed pomiarem. Dla 3 s: beep 3, beep 2, beep 1, długi beep START.")]
     public float measurementCountdownSec = 3f;
 
+    [Header("Kalibracja z linijki")]
+    public float knownCalibrationDistance = 0.16f;
+
+    [Header("Korekcja osiowa X/Y")]
+    [Tooltip("Dodatkowa korekcja osi X/Y po globalnym measurementScale.")]
+    public bool useAxisScaleCorrection = true;
+
+    [Range(0.5f, 2.0f)]
+    [Tooltip("Mnożnik korekcyjny osi X wpisywany po kalibracji.")]
+    public float xAxisScale = 1.0f;
+
+    [Range(0.5f, 2.0f)]
+    [Tooltip("Mnożnik korekcyjny osi Y wpisywany po kalibracji.")]
+    public float yAxisScale = 1.0f;
+
     private enum MeasurementState
     {
         Idle,
@@ -181,9 +196,6 @@ public class AprilTagMvpTracker : MonoBehaviour
     [Tooltip("Tylko wizualny zoom overlayu 2D. Nie wpływa na UDP.")]
     public float screenOverlayScale = 1.0f;
 
-    [Header("Kalibracja z linijki")]
-    public float knownCalibrationDistance = 0.16f;
-
     private TagDetector _detector;
     private Camera _arCamera;
     private UdpTelemetrySender _telemetry;
@@ -235,6 +247,11 @@ public class AprilTagMvpTracker : MonoBehaviour
 
     private const string PrefFocalScale = "Vision.FocalScale";
     private const string PrefMeasurementScale = "Vision.MeasurementScale";
+
+    private const string PrefUseAxisScaleCorrection = "Vision.UseAxisScaleCorrection";
+    private const string PrefXAxisScale = "Vision.XAxisScale";
+    private const string PrefYAxisScale = "Vision.YAxisScale";
+
     private const string PrefCpuMapping = "Vision.CpuMapping";
     private const string PrefMirrorCpuX = "Vision.MirrorCpuX";
     private const string PrefMirrorCpuY = "Vision.MirrorCpuY";
@@ -579,6 +596,10 @@ public class AprilTagMvpTracker : MonoBehaviour
                 float y = invertY ? -correctedPos.y : correctedPos.y;
                 float zError = invertZAxisDirection ? -correctedPos.z : correctedPos.z;
 
+                // Dodatkowa korekcja osiowa po globalnym measurementScale.
+                // Nie jest przypisana do konkretnego telefonu — wartości wpisuje użytkownik.
+                ApplyAxisScaleCorrection(ref x, ref y);
+
                 float yawWrappedDeg = Mathf.Atan2(rel.m10, rel.m00) * Mathf.Rad2Deg;
 
                 if (invertYaw)
@@ -599,6 +620,7 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"ID{referenceTagId}: OK | ID{carTagId}: OK | FPS: {fps:F1}\n" +
                     $"Dystans: {correctedDistance:F3} m  RAW: {rawDistance:F3} m\n" +
                     $"X: {x:F3}  Y: {y:F3}  Z: {zError:F3}\n" +
+                    $"AxisScale: {(useAxisScaleCorrection ? 1 : 0)}  Xs:{xAxisScale:F3}  Ys:{yAxisScale:F3}\n" +
                     $"Yaw: {yawWrappedDeg:F1}° | unwrap: {yawUnwrappedDeg:F1}° | rate: {yawRateDps:F1}°/s\n" +
                     $"UDP: {sendMode} {targetIp}:{targetPort} src:{sourceId} rate:{sendRateHz:F0}Hz\n" +
                     $"CPU: {cpuToScreenMapping} | MX:{mirrorCpuX} MY:{mirrorCpuY}\n" +
@@ -641,6 +663,15 @@ public class AprilTagMvpTracker : MonoBehaviour
                 _latestFpsHz = fpsHz;
             }
         }
+    }
+
+    private void ApplyAxisScaleCorrection(ref float x, ref float y)
+    {
+        if (!useAxisScaleCorrection)
+            return;
+
+        x *= xAxisScale;
+        y *= yAxisScale;
     }
 
     float NormalizeAngle(float angle)
@@ -709,6 +740,9 @@ public class AprilTagMvpTracker : MonoBehaviour
         PlayerPrefs.SetInt(PrefUdpOutputEnabled, udpOutputEnabled ? 1 : 0);
         PlayerPrefs.SetFloat(PrefMeasurementDurationSec, measurementDurationSec);
         PlayerPrefs.SetFloat(PrefMeasurementCountdownSec, measurementCountdownSec);
+        PlayerPrefs.SetInt(PrefUseAxisScaleCorrection, useAxisScaleCorrection ? 1 : 0);
+        PlayerPrefs.SetFloat(PrefXAxisScale, xAxisScale);
+        PlayerPrefs.SetFloat(PrefYAxisScale, yAxisScale);
 
         PlayerPrefs.Save();
 
@@ -726,6 +760,15 @@ public class AprilTagMvpTracker : MonoBehaviour
 
         focalScale = PlayerPrefs.GetFloat(PrefFocalScale, focalScale);
         measurementScale = PlayerPrefs.GetFloat(PrefMeasurementScale, measurementScale);
+
+        useAxisScaleCorrection = PlayerPrefs.GetInt(PrefUseAxisScaleCorrection,useAxisScaleCorrection ? 1 : 0) != 0;
+
+        xAxisScale = PlayerPrefs.GetFloat(PrefXAxisScale, xAxisScale);
+        yAxisScale = PlayerPrefs.GetFloat(PrefYAxisScale, yAxisScale);
+
+        xAxisScale = Mathf.Clamp(xAxisScale, 0.5f, 2.0f);
+        yAxisScale = Mathf.Clamp(yAxisScale, 0.5f, 2.0f);
+
         cpuToScreenMapping = (CpuToScreenMapping)PlayerPrefs.GetInt(PrefCpuMapping, (int)cpuToScreenMapping);
         mirrorCpuX = PlayerPrefs.GetInt(PrefMirrorCpuX, mirrorCpuX ? 1 : 0) != 0;
         mirrorCpuY = PlayerPrefs.GetInt(PrefMirrorCpuY, mirrorCpuY ? 1 : 0) != 0;

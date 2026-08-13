@@ -61,8 +61,10 @@ public sealed class UdpTelemetrySender : IDisposable
     private UdpClient _udp;
     private IPEndPoint _endPoint;
 
-    private float _lastSendTime;
     private float _lastBinaryDebugLogTime;
+
+    private float _sendAccumulator = 0f;
+    private float _lastSendUpdateTime = -1f;
 
     private uint _sequence = 0;
 
@@ -99,13 +101,13 @@ public sealed class UdpTelemetrySender : IDisposable
     }
 
     public void Configure(
-        string targetIp,
-        int targetPort,
-        float sendRateHz,
-        UdpSendMode sendMode,
-        byte sourceId,
-        bool debugBinaryLog,
-        bool forceReconnect = false)
+    string targetIp,
+    int targetPort,
+    float sendRateHz,
+    UdpSendMode sendMode,
+    byte sourceId,
+    bool debugBinaryLog,
+    bool forceReconnect = false)
     {
         targetIp = string.IsNullOrWhiteSpace(targetIp) ? "127.0.0.1" : targetIp.Trim();
         targetPort = Mathf.Clamp(targetPort, 1, 65535);
@@ -119,12 +121,24 @@ public sealed class UdpTelemetrySender : IDisposable
             _targetIp != targetIp ||
             _targetPort != targetPort;
 
+        bool schedulerChanged =
+            forceReconnect ||
+            Mathf.Abs(_sendRateHz - sendRateHz) > 0.001f ||
+            _sendMode != sendMode ||
+            _sourceId != sourceId;
+
         _targetIp = targetIp;
         _targetPort = targetPort;
         _sendRateHz = sendRateHz;
         _sendMode = sendMode;
         _sourceId = sourceId;
         _debugBinaryLog = debugBinaryLog;
+
+        if (endpointChanged || schedulerChanged)
+        {
+            _sendAccumulator = 0f;
+            _lastSendUpdateTime = -1f;
+        }
 
         if (!endpointChanged)
             return;
@@ -180,9 +194,32 @@ public sealed class UdpTelemetrySender : IDisposable
             return;
 
         float now = Time.realtimeSinceStartup;
+        float interval = 1f / _sendRateHz;
 
-        if (now - _lastSendTime < 1f / _sendRateHz)
+        if (_lastSendUpdateTime < 0f)
+        {
+            _lastSendUpdateTime = now;
+            _sendAccumulator = interval; // pierwszy pakiet od razu
+        }
+        else
+        {
+            float dt = now - _lastSendUpdateTime;
+            _lastSendUpdateTime = now;
+
+            if (dt < 0f)
+                dt = 0f;
+
+            _sendAccumulator += dt;
+
+            // zabezpieczenie przed nadrabianiem wielu pakietów po pauzie
+            if (_sendAccumulator > interval * 2f)
+                _sendAccumulator = interval * 2f;
+        }
+
+        if (_sendAccumulator + 0.0001f < interval)
             return;
+
+        _sendAccumulator -= interval;
 
         uint seq = _sequence++;
 
@@ -265,7 +302,6 @@ public sealed class UdpTelemetrySender : IDisposable
             Debug.LogWarning($"[UDP] Send error: {e.Message}");
         }
 
-        _lastSendTime = now;
     }
 
     private void BuildTextAT1(

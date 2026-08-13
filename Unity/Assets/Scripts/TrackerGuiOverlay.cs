@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Globalization;
+using UnityEngine;
 
 /// <summary>
 /// Odpowiada wyłącznie za rysowanie interfejsu diagnostycznego na ekranie:
@@ -42,6 +43,15 @@ public sealed class TrackerGuiOverlay
     private GUIStyle _textFieldStyle;
     private GUIStyle _sliderStyle;
     private GUIStyle _sliderThumbStyle;
+
+    private string _knownCalibrationDistanceText = "";
+    private float _knownCalibrationDistanceTextSource = -1f;
+
+    private string _xAxisScaleText = "";
+    private float _xAxisScaleTextSource = -1f;
+
+    private string _yAxisScaleText = "";
+    private float _yAxisScaleTextSource = -1f;
 
     private bool IsPortrait()
     {
@@ -359,15 +369,46 @@ public sealed class TrackerGuiOverlay
             2.0f
         );
 
-        tracker.knownCalibrationDistance = DrawFloatSlider(
-            $"Znany dystans: {tracker.knownCalibrationDistance:F3} m",
+        tracker.knownCalibrationDistance = DrawFloatTextInput(
+            "Znany dystans [m]",
             tracker.knownCalibrationDistance,
             0.05f,
-            1.50f
+            2.00f,
+            3,
+            ref _knownCalibrationDistanceText,
+            ref _knownCalibrationDistanceTextSource
         );
 
         GUILayout.Label($"RAW: {lastRawDistance:F3} m", _menuStyle);
         GUILayout.Label($"Po korekcie: {lastCorrectedDistance:F3} m", _menuStyle);
+
+        GUILayout.Space(10);
+        GUILayout.Label("--- Korekcja osiowa ---", _menuStyle);
+
+        tracker.useAxisScaleCorrection = DrawOnOffButton(
+            "Korekcja osi X/Y",
+            tracker.useAxisScaleCorrection
+        );
+
+        tracker.xAxisScale = DrawFloatTextInput(
+            "X Axis Scale",
+            tracker.xAxisScale,
+            0.5f,
+            2.0f,
+            4,
+            ref _xAxisScaleText,
+            ref _xAxisScaleTextSource
+        );
+
+        tracker.yAxisScale = DrawFloatTextInput(
+            "Y Axis Scale",
+            tracker.yAxisScale,
+            0.5f,
+            2.0f,
+            4,
+            ref _yAxisScaleText,
+            ref _yAxisScaleTextSource
+        );
 
         if (GUILayout.Button("Ustaw scale = znany dystans / RAW", _buttonStyle, GUILayout.Height(80)))
         {
@@ -787,6 +828,7 @@ public sealed class TrackerGuiOverlay
 
         return value;
     }
+
     private float DrawFloatSlider(string label, float value, float min, float max)
     {
         GUILayout.Label(label, _menuStyle);
@@ -794,6 +836,56 @@ public sealed class TrackerGuiOverlay
         value = DrawLargeHorizontalSlider(value, min, max);
 
         return value;
+    }
+
+    private float DrawFloatTextInput(
+        string label,
+        float value,
+        float min,
+        float max,
+        int decimals,
+        ref string text,
+        ref float textSource)
+    {
+        if (textSource < 0f || Mathf.Abs(textSource - value) > 0.0005f)
+        {
+            text = value.ToString("F" + decimals, CultureInfo.InvariantCulture);
+            textSource = value;
+        }
+
+        string valueText = value.ToString("F" + decimals, CultureInfo.InvariantCulture);
+        GUILayout.Label($"{label}: {valueText}", _menuStyle);
+
+        string newText = GUILayout.TextField(
+            text,
+            _textFieldStyle,
+            GUILayout.Height(66)
+        );
+
+        if (newText != text)
+        {
+            text = newText;
+
+            if (TryParseFloatInvariant(newText, out float parsedValue))
+            {
+                value = Mathf.Clamp(parsedValue, min, max);
+                textSource = value;
+            }
+        }
+
+        return value;
+    }
+
+    private static bool TryParseFloatInvariant(string text, out float value)
+    {
+        text = text.Trim().Replace(',', '.');
+
+        return float.TryParse(
+            text,
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out value
+        );
     }
 
     private bool DrawOnOffButton(string label, bool currentValue)
