@@ -1,0 +1,2 @@
+test_name,source_id,rx_total,rx_good,crc_bad,version_bad,valid_count,deadman_count,move_en_count,duplicate_or_old_total,lost_est_total,gap_over_2s_total,first_pc_time_unix,last_pc_time_unix,duration_s,expected_hz,actual_hz_good,valid_ratio_percent,dt_mean_ms,dt_max_ms
+Realme_STATIC_POSE_B_X0_Y45_Yaw0_rep2_10Hz_10s,2,83,83,0,0,83,0,0,0,0,0,1786570578.335211,1786570588.167092,9.832,10.000,8.442,100.00,119.901,307.269

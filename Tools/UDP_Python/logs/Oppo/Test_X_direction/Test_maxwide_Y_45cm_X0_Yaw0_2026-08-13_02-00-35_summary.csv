@@ -1,0 +1,2 @@
+test_name,source_id,rx_total,rx_good,crc_bad,version_bad,valid_count,deadman_count,move_en_count,duplicate_or_old_total,lost_est_total,gap_over_2s_total,first_pc_time_unix,last_pc_time_unix,duration_s,expected_hz,actual_hz_good,valid_ratio_percent,dt_mean_ms,dt_max_ms
+Test_maxwide_Y_45cm_X0_Yaw0,1,202,202,0,0,202,0,0,0,0,0,1786579248.679540,1786579258.510807,9.831,20.000,20.547,100.00,48.912,306.306

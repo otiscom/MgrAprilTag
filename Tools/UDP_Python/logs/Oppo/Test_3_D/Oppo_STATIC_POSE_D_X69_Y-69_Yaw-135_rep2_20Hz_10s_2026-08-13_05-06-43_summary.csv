@@ -1,0 +1,2 @@
+test_name,source_id,rx_total,rx_good,crc_bad,version_bad,valid_count,deadman_count,move_en_count,duplicate_or_old_total,lost_est_total,gap_over_2s_total,first_pc_time_unix,last_pc_time_unix,duration_s,expected_hz,actual_hz_good,valid_ratio_percent,dt_mean_ms,dt_max_ms
+Oppo_STATIC_POSE_D_X69_Y-69_Yaw-135_rep2_20Hz_10s,1,199,199,0,0,198,0,0,0,0,0,1786590415.787586,1786590425.721015,9.933,20.000,20.033,99.50,50.169,270.532

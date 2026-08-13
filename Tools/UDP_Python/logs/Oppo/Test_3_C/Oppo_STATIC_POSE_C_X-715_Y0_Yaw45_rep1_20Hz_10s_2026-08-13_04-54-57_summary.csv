@@ -1,0 +1,2 @@
+test_name,source_id,rx_total,rx_good,crc_bad,version_bad,valid_count,deadman_count,move_en_count,duplicate_or_old_total,lost_est_total,gap_over_2s_total,first_pc_time_unix,last_pc_time_unix,duration_s,expected_hz,actual_hz_good,valid_ratio_percent,dt_mean_ms,dt_max_ms
+Oppo_STATIC_POSE_C_X-715_Y0_Yaw45_rep1_20Hz_10s,1,198,198,0,0,198,0,0,0,1,0,1786589709.619867,1786589719.553142,9.933,20.000,19.933,100.00,50.423,204.932

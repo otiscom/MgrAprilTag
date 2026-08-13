@@ -1,0 +1,2 @@
+test_name,source_id,rx_total,rx_good,crc_bad,version_bad,valid_count,deadman_count,move_en_count,duplicate_or_old_total,lost_est_total,gap_over_2s_total,first_pc_time_unix,last_pc_time_unix,duration_s,expected_hz,actual_hz_good,valid_ratio_percent,dt_mean_ms,dt_max_ms
+Realme_STATIC_POSE_D_X69_Y-69_Yaw-135_rep1_20Hz_10s,2,203,203,0,0,203,0,0,0,0,0,1786590512.353328,1786590522.291646,9.938,20.000,20.426,100.00,49.200,408.484
