@@ -63,3 +63,18 @@ Simulink/HIL/ESP32/**/*.map
 
 # UDP logger output
 Tools/UDP_Python/*.csv
+
+# STM32 / embedded build outputs
+*.bin
+*.elf
+*.hex
+*.map
+*.list
+
+# CubeMX temporary files
+*.ioctmp
+*.ioctmprsv
+
+# Generated build folders
+**/Debug/
+**/Release/
