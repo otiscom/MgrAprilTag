@@ -13,8 +13,14 @@ public class AprilTagMvpTracker : MonoBehaviour
         Cover90CCW,
         Cover180
     }
+    public enum AutoDeadmanMode
+    {
+        Off,
+        Hold,
+        Cycle
+    }
 
-    private const string BUILD_MARK = "V20_UDP_MEASURE_MODE";
+    private const string BUILD_MARK = "V21_CMD_AUTODM_DEBUG";
     private const bool FORCE_START_CALIBRATION = true;
 
     private const float START_TAG_SIZE = 0.13f;
@@ -80,6 +86,57 @@ public class AprilTagMvpTracker : MonoBehaviour
     [Range(0.5f, 2.0f)]
     [Tooltip("Mnożnik korekcyjny osi Y wpisywany po kalibracji.")]
     public float yAxisScale = 1.0f;
+
+    [Header("Auto Deadman / Test Mode")]
+    [Tooltip("Automatyczny deadman do testów pomiarowych. Używać ostrożnie przy pojeździe na kołach.")]
+    public AutoDeadmanMode autoDeadmanMode = AutoDeadmanMode.Off;
+
+    [Tooltip("Jeśli true, auto-deadman działa tylko podczas właściwego okna pomiaru.")]
+    public bool autoDeadmanOnlyDuringMeasurement = true;
+
+    [Range(0.1f, 30f)]
+    [Tooltip("Czas stanu deadman=ON w trybie Cycle.")]
+    public float autoDeadmanOnSec = 2.0f;
+
+    [Range(0.1f, 30f)]
+    [Tooltip("Czas stanu deadman=OFF w trybie Cycle.")]
+    public float autoDeadmanOffSec = 1.0f;
+
+    private float _autoDeadmanCycleStartTime = 0f;
+
+    public void ResetAutoDeadmanCycle()
+    {
+        _autoDeadmanCycleStartTime = Time.realtimeSinceStartup;
+    }
+
+    public bool GetAutoDeadmanState(float now)
+    {
+        if (autoDeadmanMode == AutoDeadmanMode.Off)
+            return false;
+
+        if (autoDeadmanOnlyDuringMeasurement &&
+            _measurementState != MeasurementState.Logging)
+            return false;
+
+        if (autoDeadmanMode == AutoDeadmanMode.Hold)
+            return true;
+
+        float onSec = Mathf.Max(0.1f, autoDeadmanOnSec);
+        float offSec = Mathf.Max(0.1f, autoDeadmanOffSec);
+        float cycle = onSec + offSec;
+
+        float phase = Mathf.Repeat(now - _autoDeadmanCycleStartTime, cycle);
+
+        return phase < onSec;
+    }
+
+    public bool GetEffectiveDeadman(float now)
+    {
+        bool autoDeadman = GetAutoDeadmanState(now);
+
+        // Palec może zawsze wymusić deadmana, a automat może go generować do testów.
+        return deadmanPressed || autoDeadman;
+    }
 
     private enum MeasurementState
     {
@@ -261,6 +318,11 @@ public class AprilTagMvpTracker : MonoBehaviour
     private const string PrefMeasurementDurationSec = "Vision.MeasurementDurationSec";
     private const string PrefMeasurementCountdownSec = "Vision.MeasurementCountdownSec";
 
+    private const string PrefAutoDeadmanMode = "Vision.AutoDeadmanMode";
+    private const string PrefAutoDeadmanOnlyDuringMeasurement = "Vision.AutoDeadmanOnlyDuringMeasurement";
+    private const string PrefAutoDeadmanOnSec = "Vision.AutoDeadmanOnSec";
+    private const string PrefAutoDeadmanOffSec = "Vision.AutoDeadmanOffSec";
+
     private bool _cameraFrameSubscribed = false;
 
     void Start()
@@ -383,7 +445,7 @@ public class AprilTagMvpTracker : MonoBehaviour
             _latestPoseValid &&
             now - _lastValidPoseTime <= staleOverlayTimeout;
 
-        bool effectiveDeadman = allowOperatorControl && deadmanPressed;
+        bool effectiveDeadman = allowOperatorControl && GetEffectiveDeadman(now);
 
         ConfigureUdpSender();
 
@@ -428,6 +490,7 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"Brak świeżej klatki CPU / vision stale\n" +
                     $"Ostatni obraz > {staleOverlayTimeout:F2} s temu\n" +
                     $"UDP: {sendMode} {targetIp}:{targetPort} src:{sourceId} rate:{sendRateHz:F0}Hz\n" +
+                    $"{UdpMeasurementCommandReceiver.GetGlobalDebugLine()}\n" +
                     $"OperatorCtrl:{allowOperatorControl} deadman:{deadmanPressed} speed:{speedPercent}%";
             }
         }
@@ -436,6 +499,7 @@ public class AprilTagMvpTracker : MonoBehaviour
     void OnFrame(ARCameraFrameEventArgs args)
     {
         float now = Time.realtimeSinceStartup;
+        bool effectiveDeadmanForDebug = allowOperatorControl && GetEffectiveDeadman(now);
 
         if (camManager == null)
         {
@@ -623,8 +687,10 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"AxisScale: {(useAxisScaleCorrection ? 1 : 0)}  Xs:{xAxisScale:F3}  Ys:{yAxisScale:F3}\n" +
                     $"Yaw: {yawWrappedDeg:F1}° | unwrap: {yawUnwrappedDeg:F1}° | rate: {yawRateDps:F1}°/s\n" +
                     $"UDP: {sendMode} {targetIp}:{targetPort} src:{sourceId} rate:{sendRateHz:F0}Hz\n" +
+                    $"{UdpMeasurementCommandReceiver.GetGlobalDebugLine()}\n" +
                     $"CPU: {cpuToScreenMapping} | MX:{mirrorCpuX} MY:{mirrorCpuY}\n" +
                     $"Zmirror X:{mirrorZScreenX} Y:{mirrorZScreenY} | Zinv:{invertZAxisDirection}\n" +
+                    $"AutoDM:{autoDeadmanMode} dmEff:{effectiveDeadmanForDebug}\n" +
                     $"OperatorCtrl:{allowOperatorControl} deadman:{deadmanPressed} speed:{speedPercent}%";
 
 
@@ -650,6 +716,7 @@ public class AprilTagMvpTracker : MonoBehaviour
                     $"ID{carTagId}: {(tCar.HasValue ? "OK" : "SZUKAM")}\n" +
                     $"Wykryte: {foundCount} | CPU: {w}x{h}\n" +
                     $"UDP: {sendMode} {targetIp}:{targetPort} src:{sourceId}\n" +
+                    $"{UdpMeasurementCommandReceiver.GetGlobalDebugLine()}\n" +
                     $"CPU: {cpuToScreenMapping} | MX:{mirrorCpuX} MY:{mirrorCpuY}";
 
                 _latestPoseValid = false;
@@ -744,6 +811,11 @@ public class AprilTagMvpTracker : MonoBehaviour
         PlayerPrefs.SetFloat(PrefXAxisScale, xAxisScale);
         PlayerPrefs.SetFloat(PrefYAxisScale, yAxisScale);
 
+        PlayerPrefs.SetInt(PrefAutoDeadmanMode, (int)autoDeadmanMode);
+        PlayerPrefs.SetInt(PrefAutoDeadmanOnlyDuringMeasurement, autoDeadmanOnlyDuringMeasurement ? 1 : 0);
+        PlayerPrefs.SetFloat(PrefAutoDeadmanOnSec, autoDeadmanOnSec);
+        PlayerPrefs.SetFloat(PrefAutoDeadmanOffSec, autoDeadmanOffSec);
+
         PlayerPrefs.Save();
 
         Debug.Log("[Settings] Saved user settings.");
@@ -780,6 +852,22 @@ public class AprilTagMvpTracker : MonoBehaviour
         udpOutputEnabled = PlayerPrefs.GetInt(PrefUdpOutputEnabled, udpOutputEnabled ? 1 : 0) != 0;
         measurementDurationSec = PlayerPrefs.GetFloat(PrefMeasurementDurationSec, measurementDurationSec);
         measurementCountdownSec = PlayerPrefs.GetFloat(PrefMeasurementCountdownSec, measurementCountdownSec);
+
+        autoDeadmanMode = (AutoDeadmanMode)PlayerPrefs.GetInt(
+            PrefAutoDeadmanMode,
+            (int)autoDeadmanMode
+        );
+
+        autoDeadmanOnlyDuringMeasurement = PlayerPrefs.GetInt(
+            PrefAutoDeadmanOnlyDuringMeasurement,
+            autoDeadmanOnlyDuringMeasurement ? 1 : 0
+        ) != 0;
+
+        autoDeadmanOnSec = PlayerPrefs.GetFloat(PrefAutoDeadmanOnSec, autoDeadmanOnSec);
+        autoDeadmanOffSec = PlayerPrefs.GetFloat(PrefAutoDeadmanOffSec, autoDeadmanOffSec);
+
+        autoDeadmanOnSec = Mathf.Clamp(autoDeadmanOnSec, 0.1f, 30f);
+        autoDeadmanOffSec = Mathf.Clamp(autoDeadmanOffSec, 0.1f, 30f);
 
         measurementDurationSec = Mathf.Clamp(measurementDurationSec, 1f, 120f);
         measurementCountdownSec = Mathf.Clamp(measurementCountdownSec, 1f, 10f);
@@ -870,6 +958,8 @@ private void UpdateMeasurementState(float now)
 
             udpOutputEnabled = true;
             _measurementState = MeasurementState.Logging;
+            
+            ResetAutoDeadmanCycle();
 
             MeasurementStatusText = $"LOGGING: {measurementDurationSec:F1}s";
             MeasurementOverlayText = $"POMIAR TRWA: {measurementDurationSec:F1}s";

@@ -1,0 +1,7 @@
+signal_label,panel,source_signal,source_channel,num_samples,num_channels,csv_path,conversion_note
+valid,ATU1 UART safety flags,MATLAB Function5:1,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_UART_ATU1_data_rep1\csv\01_valid.csv,vector
+deadman,ATU1 UART safety flags,MATLAB Function5:2,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_UART_ATU1_data_rep1\csv\09_deadman.csv,vector
+move_en,ATU1 UART safety flags,MATLAB Function5:3,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_UART_ATU1_data_rep1\csv\17_move_en.csv,vector
+fused_available,ATU1 UART safety flags,MATLAB Function5:4,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_UART_ATU1_data_rep1\csv\25_fused_available.csv,vector
+safe_to_drive,ATU1 UART safety flags,MATLAB Function5:5,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_UART_ATU1_data_rep1\csv\33_safe_to_drive.csv,vector
+hard_stop,ATU1 UART safety flags,MATLAB Function5:6,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_UART_ATU1_data_rep1\csv\41_hard_stop.csv,vector

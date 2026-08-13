@@ -1,0 +1,2 @@
+test_name,source_id,rx_total,rx_good,crc_bad,version_bad,valid_count,deadman_count,move_en_count,duplicate_or_old_total,lost_est_total,gap_over_2s_total,first_pc_time_unix,last_pc_time_unix,duration_s,expected_hz,actual_hz_good,valid_ratio_percent,dt_mean_ms,dt_max_ms
+Oppo_deadman_cycle,1,51,51,0,0,51,36,36,0,0,0,1786637255.230880,1786637265.061501,9.831,20.000,5.188,100.00,196.612,308.840

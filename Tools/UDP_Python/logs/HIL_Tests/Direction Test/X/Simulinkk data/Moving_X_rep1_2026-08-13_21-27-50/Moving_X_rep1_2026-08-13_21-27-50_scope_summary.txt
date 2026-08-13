@@ -1,0 +1,15 @@
+HIL Scope Dataset Saver
+RUN_NAME: Moving_X_rep1
+TEST_PREFIX: Moving_X
+REP: 1
+TIMESTAMP: 2026-08-13_21-27-50
+OUT_DIR: C:\Users\mateu\Desktop\Mgr\Tools\UDP_Python\logs\HIL_Tests\Direction Test\X\Simulinkk data\Moving_X_rep1_2026-08-13_21-27-50
+
+FOUND VARIABLES:
+
+MISSING VARIABLES:
+  Moving_X_Scope_Yaw_Wrapped_rep1
+  Moving_X_Scope_Y_data_rep1
+  Moving_X_Scope_X_data_rep1
+  Moving_X_Scope_Control_data_rep1
+  Moving_X_Scope_UART_ATU1_data_rep1

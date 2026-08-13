@@ -1,0 +1,9 @@
+signal_label,panel,source_signal,source_channel,num_samples,num_channels,csv_path,conversion_note
+src1_yaw,Yaw signals,src1_yaw_u,1,1242,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep3_2026-08-13_22-24-32\Moving_X_Scope_Yaw_Wrapped_rep3\csv\01_src1_yaw.csv,time_dim_last [1     1  1242]
+src2_yaw,Yaw signals,src2_yaw_u,1,1242,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep3_2026-08-13_22-24-32\Moving_X_Scope_Yaw_Wrapped_rep3\csv\09_src2_yaw.csv,time_dim_last [1     1  1242]
+pred1_yaw,Yaw signals,pred1_yaw_u,1,1242,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep3_2026-08-13_22-24-32\Moving_X_Scope_Yaw_Wrapped_rep3\csv\17_pred1_yaw.csv,time_dim_last [1     1  1242]
+pred2_yaw,Yaw signals,pred2_yaw_u,1,1242,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep3_2026-08-13_22-24-32\Moving_X_Scope_Yaw_Wrapped_rep3\csv\25_pred2_yaw.csv,time_dim_last [1     1  1242]
+fused_yaw,Yaw signals,fused_yaw_u,1,1242,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep3_2026-08-13_22-24-32\Moving_X_Scope_Yaw_Wrapped_rep3\csv\33_fused_yaw.csv,time_dim_last [1     1  1242]
+safe_yaw,Yaw signals,safe_yaw_u,1,1242,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep3_2026-08-13_22-24-32\Moving_X_Scope_Yaw_Wrapped_rep3\csv\41_safe_yaw.csv,time_dim_last [1     1  1242]
+safe_to_drive,Safety,Mux_Safety_Status:1,4,1242,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep3_2026-08-13_22-24-32\Moving_X_Scope_Yaw_Wrapped_rep3\csv\49_safe_to_drive.csv,time_dim_first [1242     8]
+safe_speed_norm,Safety,Mux_Safety_Status:1,8,1242,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep3_2026-08-13_22-24-32\Moving_X_Scope_Yaw_Wrapped_rep3\csv\57_safe_speed_norm.csv,time_dim_first [1242     8]

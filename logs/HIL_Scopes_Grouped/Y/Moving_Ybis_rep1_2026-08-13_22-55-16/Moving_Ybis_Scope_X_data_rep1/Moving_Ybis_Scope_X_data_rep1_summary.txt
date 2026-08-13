@@ -1,0 +1,11 @@
+Scope folder: Moving_Ybis_Scope_X_data_rep1
+Run name: Moving_Ybis_rep1
+Run ID: 142562
+SDI run name: Run 9: ESP32_UDP_UART_Bridge
+Exported signals: 8
+Missing signals: 0
+Manifest: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Y\Moving_Ybis_rep1_2026-08-13_22-55-16\Moving_Ybis_Scope_X_data_rep1\Moving_Ybis_Scope_X_data_rep1_manifest.csv
+Missing: 
+MAT: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Y\Moving_Ybis_rep1_2026-08-13_22-55-16\Moving_Ybis_Scope_X_data_rep1\Moving_Ybis_Scope_X_data_rep1_signals.mat
+PNG light: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Y\Moving_Ybis_rep1_2026-08-13_22-55-16\Moving_Ybis_Scope_X_data_rep1\Moving_Ybis_Scope_X_data_rep1_scope.png
+PNG dark: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Y\Moving_Ybis_rep1_2026-08-13_22-55-16\Moving_Ybis_Scope_X_data_rep1\Moving_Ybis_Scope_X_data_rep1_scope_dark.png

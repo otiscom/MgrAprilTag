@@ -1,0 +1,2 @@
+test_name,source_id,device_name,rx_total,rx_good,crc_bad,version_bad,valid_count,deadman_count,move_en_count,duplicate_or_old_total,lost_est_total,gap_over_2s_total,first_pc_time_unix,last_pc_time_unix,duration_s,expected_hz,actual_hz_good,valid_ratio_percent,dt_mean_ms,dt_max_ms
+HIL_DYNAMIC_LINE_Y_manual_2SRC_20Hz_20s_rep2,1,Oppo,203,203,0,0,203,143,143,0,0,0,1786653435.266211,1786653445.199230,9.933,20.000,20.437,100.00,49.173,510.921

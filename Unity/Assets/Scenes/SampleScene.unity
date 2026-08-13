@@ -565,6 +565,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1799114884}
   - component: {fileID: 1799114883}
+  - component: {fileID: 1799114885}
   m_Layer: 0
   m_Name: TagManager
   m_TagString: Untagged
@@ -589,10 +590,25 @@ MonoBehaviour:
   carTagId: 1
   visionRateHz: 45
   staleOverlayTimeout: 0.25
-  pcIp: 10.171.128.230
-  udpPort: 5005
+  sendMode: 0
+  targetIp: 192.168.18.238
+  targetPort: 5005
+  sourceId: 1
+  debugBinaryUdp: 0
   sendRateHz: 30
+  udpOutputEnabled: 1
+  measurementDurationSec: 10
+  measurementCountdownSec: 3
+  knownCalibrationDistance: 0.16
+  useAxisScaleCorrection: 1
+  xAxisScale: 1
+  yAxisScale: 1
+  autoDeadmanMode: 0
+  autoDeadmanOnlyDuringMeasurement: 1
+  autoDeadmanOnSec: 2
+  autoDeadmanOffSec: 1
   speedPercent: 20
+  allowOperatorControl: 1
   deadmanPressed: 0
   invertX: 0
   invertY: 1
@@ -618,7 +634,6 @@ MonoBehaviour:
   focalScale: 1
   measurementScale: 0.57
   screenOverlayScale: 1
-  knownCalibrationDistance: 0.16
 --- !u!4 &1799114884
 Transform:
   m_ObjectHideFlags: 0
@@ -634,6 +649,22 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1799114885
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1799114882}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b3a09e211b82cb45a09dffb536d7ab8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  listenPort: 5012
+  autoStart: 1
+  tracker: {fileID: 1799114883}
+  showCommandOverlay: 1
 --- !u!1 &1828601335
 GameObject:
   m_ObjectHideFlags: 0

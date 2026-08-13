@@ -1,0 +1,9 @@
+signal_label,panel_index,panel_title,matched,signal_id,csv_file,status
+src1_yaw_u,1,,1,62718,src1_yaw_u.csv,ok
+src2_yaw_u,1,,1,62714,src2_yaw_u.csv,ok
+pred1_yaw_u,1,,1,62710,pred1_yaw_u.csv,ok
+pred2_yaw_u,1,,1,62706,pred2_yaw_u.csv,ok
+fused_yaw_u,1,,1,62702,fused_yaw_u.csv,ok
+safe_yaw_u,1,,1,62698,safe_yaw_u.csv,ok
+safe_to_drive,2,,0,0,,not_found
+safe_speed_norm,2,,0,0,,not_found

@@ -1,0 +1,9 @@
+signal_label,panel,source_signal,source_channel,num_samples,num_channels,csv_path,conversion_note
+src1_y,Y signals,src1_y,1,2858,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Y_data_rep1\csv\01_src1_y.csv,time_dim_last [1     1  2858]
+src2_y,Y signals,src2_y,1,2858,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Y_data_rep1\csv\09_src2_y.csv,time_dim_last [1     1  2858]
+pred1_y,Y signals,pred1_y,1,2858,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Y_data_rep1\csv\17_pred1_y.csv,time_dim_last [1     1  2858]
+pred2_y,Y signals,pred2_y,1,2858,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Y_data_rep1\csv\25_pred2_y.csv,time_dim_last [1     1  2858]
+fused_y,Y signals,fused_y,1,2858,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Y_data_rep1\csv\33_fused_y.csv,time_dim_last [1     1  2858]
+safe_y,Y signals,safe_y,1,2858,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Y_data_rep1\csv\41_safe_y.csv,time_dim_last [1     1  2858]
+safe_to_drive,Safety,Mux_Safety_Status:1,4,2858,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Y_data_rep1\csv\49_safe_to_drive.csv,time_dim_first [2858     8]
+safe_speed_norm,Safety,Mux_Safety_Status:1,8,2858,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Y_data_rep1\csv\57_safe_speed_norm.csv,time_dim_first [2858     8]

@@ -1,0 +1,11 @@
+Scope folder: Moving_Square_Scope_Y_data_rep1
+Run name: Moving_Square_rep1
+Run ID: 248435
+SDI run name: Run 14: ESP32_UDP_UART_Bridge
+Exported signals: 8
+Missing signals: 0
+Manifest: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_Y_data_rep1\Moving_Square_Scope_Y_data_rep1_manifest.csv
+Missing: 
+MAT: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_Y_data_rep1\Moving_Square_Scope_Y_data_rep1_signals.mat
+PNG light: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_Y_data_rep1\Moving_Square_Scope_Y_data_rep1_scope.png
+PNG dark: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_Y_data_rep1\Moving_Square_Scope_Y_data_rep1_scope_dark.png

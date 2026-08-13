@@ -1,0 +1,16 @@
+HIL SDI Scope/Data Saver ROBUST V3
+RUN_NAME: Moving_X_rep1
+TEST_PREFIX: Moving_X
+REP: 1
+TIMESTAMP: 2026-08-13_21-41-54
+runID: 28715
+runName: Run 3: ESP32_UDP_UART_Bridge
+SignalCount: 65
+exportedCount: 65
+skippedCount: 0
+errorCount: 0
+OUT_DIR: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes\Moving_X_rep1_2026-08-13_21-41-54
+inventoryPath: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes\Moving_X_rep1_2026-08-13_21-41-54\Moving_X_rep1_2026-08-13_21-41-54_sdi_inventory.csv
+indexPath: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes\Moving_X_rep1_2026-08-13_21-41-54\Moving_X_rep1_2026-08-13_21-41-54_sdi_export_index.csv
+errorPath: 
+matPath: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes\Moving_X_rep1_2026-08-13_21-41-54\Moving_X_rep1_2026-08-13_21-41-54_sdi_export_struct.mat

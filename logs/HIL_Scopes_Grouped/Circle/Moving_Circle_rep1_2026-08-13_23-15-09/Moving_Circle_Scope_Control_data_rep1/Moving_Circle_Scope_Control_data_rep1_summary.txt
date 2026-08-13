@@ -1,0 +1,11 @@
+Scope folder: Moving_Circle_Scope_Control_data_rep1
+Run name: Moving_Circle_rep1
+Run ID: 210884
+SDI run name: Run 12: ESP32_UDP_UART_Bridge
+Exported signals: 20
+Missing signals: 0
+Manifest: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Circle\Moving_Circle_rep1_2026-08-13_23-15-09\Moving_Circle_Scope_Control_data_rep1\Moving_Circle_Scope_Control_data_rep1_manifest.csv
+Missing: 
+MAT: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Circle\Moving_Circle_rep1_2026-08-13_23-15-09\Moving_Circle_Scope_Control_data_rep1\Moving_Circle_Scope_Control_data_rep1_signals.mat
+PNG light: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Circle\Moving_Circle_rep1_2026-08-13_23-15-09\Moving_Circle_Scope_Control_data_rep1\Moving_Circle_Scope_Control_data_rep1_scope.png
+PNG dark: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Circle\Moving_Circle_rep1_2026-08-13_23-15-09\Moving_Circle_Scope_Control_data_rep1\Moving_Circle_Scope_Control_data_rep1_scope_dark.png

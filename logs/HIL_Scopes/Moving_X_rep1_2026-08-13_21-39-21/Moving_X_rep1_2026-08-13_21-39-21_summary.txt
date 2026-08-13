@@ -1,0 +1,16 @@
+HIL SDI Scope/Data Saver FIXED V2
+RUN_NAME: Moving_X_rep1
+TEST_PREFIX: Moving_X
+REP: 1
+TIMESTAMP: 2026-08-13_21-39-21
+runID: 28715
+runName: Run 3: ESP32_UDP_UART_Bridge
+SignalCount: 65
+exportedCount: 0
+skippedCount: 0
+errorCount: 65
+OUT_DIR: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes\Moving_X_rep1_2026-08-13_21-39-21
+inventoryPath: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes\Moving_X_rep1_2026-08-13_21-39-21\Moving_X_rep1_2026-08-13_21-39-21_sdi_inventory.csv
+indexPath: 
+errorPath: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes\Moving_X_rep1_2026-08-13_21-39-21\Moving_X_rep1_2026-08-13_21-39-21_sdi_export_errors.csv
+matPath: 

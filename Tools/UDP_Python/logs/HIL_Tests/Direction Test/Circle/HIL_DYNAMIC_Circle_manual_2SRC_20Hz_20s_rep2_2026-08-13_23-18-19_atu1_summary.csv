@@ -1,0 +1,3 @@
+test_name,frame_type,total,frame_ok,length_bad,header_bad,version_bad,crc_bad,safe_to_drive_count,hard_stop_count,hold_mode_count,soft_decay_count,deadman_count,move_en_count,valid_count,source_0_count,source_1_count,source_2_count,first_pc_time_unix,last_pc_time_unix,duration_s,expected_hz,actual_hz_ok,dt_mean_ms,dt_max_ms
+HIL_DYNAMIC_Circle_manual_2SRC_20Hz_20s_rep2,ATU1_STREAM,356,356,0,0,0,0,105,251,0,0,105,105,105,251,43,62,1786655942.784818,1786655978.222606,35.438,200.000,10.046,99.825,146.431
+HIL_DYNAMIC_Circle_manual_2SRC_20Hz_20s_rep2,ATU1_SNAPSHOT,2,2,0,0,0,0,2,0,0,0,2,2,2,0,1,1,1786655967.767889,1786655967.769271,0.001,,1447.060,1.382,1.382

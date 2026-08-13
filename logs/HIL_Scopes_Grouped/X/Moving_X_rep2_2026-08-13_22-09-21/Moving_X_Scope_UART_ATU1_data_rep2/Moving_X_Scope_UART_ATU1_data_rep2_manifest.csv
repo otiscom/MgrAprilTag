@@ -1,0 +1,7 @@
+signal_label,panel_index,panel_title,matched,signal_id,csv_file,status
+valid,1,,0,NaN,,not_found
+deadman,1,,0,NaN,,not_found
+move_en,1,,0,NaN,,not_found
+fused_available,1,,0,NaN,,not_found
+safe_to_drive,1,,0,NaN,,not_found
+hard_stop,1,,0,NaN,,not_found

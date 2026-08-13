@@ -1,0 +1,10 @@
+Scope folder: Moving_X_Scope_Control_data_rep1
+Run name: Moving_X_rep1
+Run ID: 28715
+SDI run name: Run 3: ESP32_UDP_UART_Bridge
+Exported signals: 20
+Missing signals: 0
+Manifest: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Control_data_rep1\Moving_X_Scope_Control_data_rep1_manifest.csv
+Missing: 
+MAT: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Control_data_rep1\Moving_X_Scope_Control_data_rep1_signals.mat
+PNG: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep1_2026-08-13_21-54-58\Moving_X_Scope_Control_data_rep1\Moving_X_Scope_Control_data_rep1_scope.png

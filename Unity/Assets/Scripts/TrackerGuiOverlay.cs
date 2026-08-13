@@ -53,6 +53,12 @@ public sealed class TrackerGuiOverlay
     private string _yAxisScaleText = "";
     private float _yAxisScaleTextSource = -1f;
 
+    private string _autoDeadmanOnText = "";
+    private float _autoDeadmanOnTextSource = -1f;
+
+    private string _autoDeadmanOffText = "";
+    private float _autoDeadmanOffTextSource = -1f;
+
     private bool IsPortrait()
     {
         return Screen.height > Screen.width;
@@ -280,20 +286,24 @@ public sealed class TrackerGuiOverlay
         };
     }
 
-
-    private void DrawCalibrationButton()
+    private Rect GetCalibrationButtonRect()
     {
         Rect safe = Screen.safeArea;
 
         float w = IsPortrait() ? 230f : 245f;
         float h = IsPortrait() ? 66f : 80f;
 
-        Rect buttonRect = new Rect(
+        return new Rect(
             safe.xMax - w - 18f,
             safe.yMin + 18f,
             w,
             h
         );
+    }
+
+    private void DrawCalibrationButton()
+    {
+        Rect buttonRect = GetCalibrationButtonRect();
 
         if (GUI.Button(buttonRect, _isMenuOpen ? "ZAMKNIJ" : "KALIBRACJA", _topButtonStyle))
         {
@@ -724,6 +734,51 @@ public sealed class TrackerGuiOverlay
 
         tracker.debugBinaryUdp = DrawDebugBinaryButton(tracker.debugBinaryUdp);
 
+        GUILayout.Space(10);
+        GUILayout.Label("--- Auto Deadman / Test Mode ---", _menuStyle);
+
+        if (GUILayout.Button($"AutoDM: {tracker.autoDeadmanMode}", _buttonStyle, GUILayout.Height(80)))
+        {
+            if (tracker.autoDeadmanMode == AprilTagMvpTracker.AutoDeadmanMode.Off)
+                tracker.autoDeadmanMode = AprilTagMvpTracker.AutoDeadmanMode.Hold;
+            else if (tracker.autoDeadmanMode == AprilTagMvpTracker.AutoDeadmanMode.Hold)
+                tracker.autoDeadmanMode = AprilTagMvpTracker.AutoDeadmanMode.Cycle;
+            else
+                tracker.autoDeadmanMode = AprilTagMvpTracker.AutoDeadmanMode.Off;
+
+            tracker.ResetAutoDeadmanCycle();
+            GUIUtility.ExitGUI();
+        }
+
+        tracker.autoDeadmanOnlyDuringMeasurement = DrawOnOffButton(
+            "AutoDM tylko w pomiarze",
+            tracker.autoDeadmanOnlyDuringMeasurement
+        );
+
+        tracker.autoDeadmanOnSec = DrawFloatTextInput(
+            "Deadman ON [s]",
+            tracker.autoDeadmanOnSec,
+            0.1f,
+            30f,
+            2,
+            ref _autoDeadmanOnText,
+            ref _autoDeadmanOnTextSource
+        );
+
+        tracker.autoDeadmanOffSec = DrawFloatTextInput(
+            "Deadman OFF [s]",
+            tracker.autoDeadmanOffSec,
+            0.1f,
+            30f,
+            2,
+            ref _autoDeadmanOffText,
+            ref _autoDeadmanOffTextSource
+        );
+
+        bool dmNow = tracker.allowOperatorControl && tracker.GetEffectiveDeadman(Time.realtimeSinceStartup);
+
+        GUILayout.Label($"Deadman effective: {(dmNow ? "ON" : "OFF")}", _menuStyle);
+
         GUILayout.BeginHorizontal();
 
         if (GUILayout.Button("SAVE SETTINGS", _buttonStyle, GUILayout.Height(80)))
@@ -742,7 +797,15 @@ public sealed class TrackerGuiOverlay
 
         GUILayout.Space(8);
 
-        GUILayout.Label($"Deadman: {(tracker.deadmanPressed ? 1 : 0)}", _menuStyle);
+        bool physicalDeadman = tracker.deadmanPressed;
+        bool autoDeadmanState = tracker.GetAutoDeadmanState(Time.realtimeSinceStartup);
+        bool udpDeadman =
+            tracker.allowOperatorControl &&
+            tracker.GetEffectiveDeadman(Time.realtimeSinceStartup);
+
+        GUILayout.Label($"Deadman physical: {(physicalDeadman ? 1 : 0)}", _menuStyle);
+        GUILayout.Label($"Deadman auto: {(autoDeadmanState ? 1 : 0)}", _menuStyle);
+        GUILayout.Label($"Deadman UDP/effective: {(udpDeadman ? 1 : 0)}", _menuStyle);
         GUILayout.Label($"Speed: {tracker.speedPercent}%", _menuStyle);
     }
 
@@ -1026,7 +1089,7 @@ public sealed class TrackerGuiOverlay
         // Deadman: maksymalnie szeroki do menu.
         float rightLimit = _isMenuOpen
             ? GetCalibrationMenuRect().x - 10f
-            : safe.xMax - 18f;
+            : GetCalibrationButtonRect().x - 10f;
 
         float deadmanX = leftPanelRect.xMax + 10f;
         float deadmanY = topY;
@@ -1037,7 +1100,13 @@ public sealed class TrackerGuiOverlay
 
         tracker.deadmanPressed = IsPointerDownInside(deadmanRect);
 
-        GUI.color = tracker.deadmanPressed ? _deadmanOnColor : _deadmanOffColor;
+        bool autoDeadman = tracker.GetAutoDeadmanState(Time.realtimeSinceStartup);
+        bool effectiveDeadman =
+            tracker.allowOperatorControl &&
+            tracker.GetEffectiveDeadman(Time.realtimeSinceStartup);
+
+        GUI.color = effectiveDeadman ? _deadmanOnColor : _deadmanOffColor;
+
         GUI.DrawTexture(deadmanRect, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
@@ -1048,9 +1117,22 @@ public sealed class TrackerGuiOverlay
             deadmanRect.height - 16f
         );
 
+        string deadmanText;
+
+        if (effectiveDeadman)
+        {
+            deadmanText = autoDeadman && !tracker.deadmanPressed
+                ? "AUTO DEADMAN ON"
+                : "DEADMAN ON";
+        }
+        else
+        {
+            deadmanText = "TRZYMAJ, ABY JECHAĆ";
+        }
+
         GUI.Label(
             deadmanTextRect,
-            tracker.deadmanPressed ? "DEADMAN ON" : "TRZYMAJ, ABY JECHAĆ",
+            deadmanText,
             _deadmanStyle
         );
     }
@@ -1137,13 +1219,27 @@ public sealed class TrackerGuiOverlay
 
         tracker.deadmanPressed = IsPointerDownInside(deadmanRect);
 
-        GUI.color = tracker.deadmanPressed ? _deadmanOnColor : _deadmanOffColor;
+        bool autoDeadman = tracker.GetAutoDeadmanState(Time.realtimeSinceStartup);
+        bool effectiveDeadman =
+            tracker.allowOperatorControl &&
+            tracker.GetEffectiveDeadman(Time.realtimeSinceStartup);
+
+        GUI.color = effectiveDeadman ? _deadmanOnColor : _deadmanOffColor;
         GUI.DrawTexture(deadmanRect, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        string deadmanText = tracker.deadmanPressed
-            ? "DEADMAN ON"
-            : "TRZYMAJ, ABY JECHAĆ";
+        string deadmanText;
+
+        if (effectiveDeadman)
+        {
+            deadmanText = autoDeadman && !tracker.deadmanPressed
+                ? "AUTO DEADMAN ON"
+                : "DEADMAN ON";
+        }
+        else
+        {
+            deadmanText = "TRZYMAJ, ABY JECHAĆ";
+        }
 
         Rect rotatedTextRect = new Rect(
             deadmanRect.center.x - deadmanRect.height * 0.5f,

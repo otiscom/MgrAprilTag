@@ -12,6 +12,11 @@ classdef UartUdpMirrorSystem < matlab.System ...
 
         LocalPort  (1,1) uint16 = uint16(5010)
         RemotePort (1,1) uint16 = uint16(5010)
+
+        % 0.02  -> 50 Hz
+        % 0.025 -> 40 Hz
+        % 0.005 -> 200 Hz
+        SampleTime_s (1,1) double = 0.02
     end
 
     methods (Static)
@@ -140,14 +145,10 @@ classdef UartUdpMirrorSystem < matlab.System ...
         end
  
         function sts = getSampleTimeImpl(obj)
-            
-             % Blok dziedziczy sample time z uart_bytes.
-             % Jeżeli builder i Serial Transmit pracują co 0.005 s,
-             % mirror również będzie pracował co 0.005 s.
-             
             sts = createSampleTime( ...
-                obj, ...
-                'Type', 'Inherited');
+            obj, ...
+            'Type', 'Discrete', ...
+            'SampleTime', obj.SampleTime_s);
         end
 
         function icon = getIconImpl(~)

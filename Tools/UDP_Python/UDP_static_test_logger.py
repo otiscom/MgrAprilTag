@@ -34,10 +34,12 @@ UDP_IP = "0.0.0.0"
 UDP_PORT = 5005
 
 # Zmieniaj przed każdym testem.
-SESSION_NAME = ("Realme_STATIC_POSE_D_X69_Y-69_Yaw-135_rep3_20Hz_10s")
+SESSION_NAME = ("Oppo_deadman_cycle")
+    #("Realme_STATIC_POSE_D_X69_Y-69_Yaw-135_rep3_20Hz_10s")
 
 # Możesz dać np. Path(r"C:\Users\mateu\Desktop\Mgr\logs")
-LOG_DIR = Path("logs/Realme/Test_3_D")
+LOG_DIR = Path("logs/Oppo/Deadman_Test_Remote_Measurements")
+           #("logs/Realme/Test_3_D"))
 
 # Opcjonalnie: jeżeli testujesz np. 20 Hz, wpisz 20.0.
 # Służy tylko do podsumowania, nie wpływa na logowanie.

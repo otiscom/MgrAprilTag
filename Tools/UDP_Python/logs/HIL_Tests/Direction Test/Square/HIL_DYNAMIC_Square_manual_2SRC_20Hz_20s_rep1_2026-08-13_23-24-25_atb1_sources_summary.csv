@@ -1,0 +1,3 @@
+test_name,source_id,device_name,rx_total,rx_good,crc_bad,version_bad,valid_count,deadman_count,move_en_count,duplicate_or_old_total,lost_est_total,gap_over_2s_total,first_pc_time_unix,last_pc_time_unix,duration_s,expected_hz,actual_hz_good,valid_ratio_percent,dt_mean_ms,dt_max_ms
+HIL_DYNAMIC_Square_manual_2SRC_20Hz_20s_rep1,1,Oppo,304,304,0,0,304,213,213,0,0,0,1786656304.464829,1786656319.416605,14.952,20.000,20.332,100.00,49.346,512.085
+HIL_DYNAMIC_Square_manual_2SRC_20Hz_20s_rep1,2,Realme,306,306,0,0,304,0,0,0,0,0,1786656304.361525,1786656319.416605,15.055,20.000,20.325,99.35,49.361,511.102

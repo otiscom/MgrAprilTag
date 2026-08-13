@@ -1,0 +1,2 @@
+test_name,pc_time_iso,pc_time_unix,session_elapsed_s,local_port,sender_ip,sender_port,len,raw_hex
+HIL_DYNAMIC_Square_manual_2SRC_20Hz_20s_rep1,2026-08-13T23:24:53.821+02:00,1786656293.821673,28.301598,5010,192.168.0.171,5010,38,00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00

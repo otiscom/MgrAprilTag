@@ -1,0 +1,15 @@
+Scope folder: Moving_X_Scope_Control_data_rep2
+Matched signals: 0
+Total expected signals: 20
+Missing signals: 20
+
+Manifest: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep2_2026-08-13_22-09-21\Moving_X_Scope_Control_data_rep2\Moving_X_Scope_Control_data_rep2_manifest.csv
+Missing:  C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep2_2026-08-13_22-09-21\Moving_X_Scope_Control_data_rep2\Moving_X_Scope_Control_data_rep2_missing.csv
+MAT:      C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep2_2026-08-13_22-09-21\Moving_X_Scope_Control_data_rep2\Moving_X_Scope_Control_data_rep2_signals.mat
+PNG light:C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep2_2026-08-13_22-09-21\Moving_X_Scope_Control_data_rep2\png\Moving_X_Scope_Control_data_rep2_scope.png
+PNG dark: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Moving_X_rep2_2026-08-13_22-09-21\Moving_X_Scope_Control_data_rep2\png\Moving_X_Scope_Control_data_rep2_scope_dark.png
+
+Panels:
+  [1] Source status
+  [2] Fusion status
+  [3] Safety status

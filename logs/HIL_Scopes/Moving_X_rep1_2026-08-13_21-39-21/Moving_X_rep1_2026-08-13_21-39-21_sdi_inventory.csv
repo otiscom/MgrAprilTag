@@ -1,0 +1,66 @@
+signal_index,signal_name,block_path,values_class,data_size,time_len
+1,Selector6:1,ESP32_UDP_UART_Bridge/Selector6,timeseries,[1 1 2858],2858
+2,Selector6,ESP32_UDP_UART_Bridge/To Workspace5,timeseries,[1 1 2858],2858
+3,Selector1:1,ESP32_UDP_UART_Bridge/Selector1,timeseries,[1 1 2858],2858
+4,Selector5:1,ESP32_UDP_UART_Bridge/Selector5,timeseries,[1 1 2858],2858
+5,Selector1,ESP32_UDP_UART_Bridge/To Workspace3,timeseries,[1 1 2858],2858
+6,Selector5,ESP32_UDP_UART_Bridge/To Workspace4,timeseries,[1 1 2858],2858
+7,Selector2:1,ESP32_UDP_UART_Bridge/Selector2,timeseries,[1 1 2858],2858
+8,Selector3:1,ESP32_UDP_UART_Bridge/Selector3,timeseries,[1 1 2858],2858
+9,Selector7:1,ESP32_UDP_UART_Bridge/Selector7,timeseries,[1 1 2858],2858
+10,Selector2,ESP32_UDP_UART_Bridge/To Workspace,timeseries,[1 1 2858],2858
+11,Selector3,ESP32_UDP_UART_Bridge/To Workspace1,timeseries,[1 1 2858],2858
+12,Selector7,ESP32_UDP_UART_Bridge/To Workspace7,timeseries,[1 1 2858],2858
+13,Mux_Safety_Status:1,ESP32_UDP_UART_Bridge/Subsystem/Mux_Safety_Status,timeseries,[2858 8],2858
+14,Mux_Fusion_Status:1,ESP32_UDP_UART_Bridge/Subsystem/Mux_Fusion_Status,timeseries,[2858 6],2858
+15,Mux_Source_Status:1,ESP32_UDP_UART_Bridge/Subsystem/Mux_Source_Status,timeseries,[2858 6],2858
+16,Mux1:1,ESP32_UDP_UART_Bridge/Subsystem/Mux1,timeseries,[2858 6],2858
+17,Mux1(1),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+18,Mux2:1,ESP32_UDP_UART_Bridge/Subsystem/Mux2,timeseries,[2858 6],2858
+19,Mux_Trajectory_X:1,ESP32_UDP_UART_Bridge/Subsystem/Mux_Trajectory_X,timeseries,[2858 6],2858
+20,Mux_Trajectory_X(1),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+21,Mux:1,ESP32_UDP_UART_Bridge/Mux,timeseries,[2858 6],2858
+22,Selector4:1,ESP32_UDP_UART_Bridge/Selector4,timeseries,[1 1 2858],2858
+23,Selector4,ESP32_UDP_UART_Bridge/To Workspace2,timeseries,[1 1 2858],2858
+24,Mux3:1(1),ESP32_UDP_UART_Bridge/Subsystem/Mux3,timeseries,[2858 1],2858
+25,MATLAB Function5:1,ESP32_UDP_UART_Bridge/MATLAB Function5,timeseries,[2858 1],2858
+26,MATLAB Function5:2,ESP32_UDP_UART_Bridge/MATLAB Function5,timeseries,[2858 1],2858
+27,MATLAB Function5:3,ESP32_UDP_UART_Bridge/MATLAB Function5,timeseries,[2858 1],2858
+28,MATLAB Function5:4,ESP32_UDP_UART_Bridge/MATLAB Function5,timeseries,[2858 1],2858
+29,MATLAB Function5:5,ESP32_UDP_UART_Bridge/MATLAB Function5,timeseries,[2858 1],2858
+30,MATLAB Function5:6,ESP32_UDP_UART_Bridge/MATLAB Function5,timeseries,[2858 1],2858
+31,MATLAB Function5:7,ESP32_UDP_UART_Bridge/MATLAB Function5,timeseries,[2858 1],2858
+32,safe_X,ESP32_UDP_UART_Bridge/Subsystem/SEL_safe_x,timeseries,[1 1 2858],2858
+33,fused_x,ESP32_UDP_UART_Bridge/Subsystem/SEL_fused_x,timeseries,[1 1 2858],2858
+34,pred2_x,ESP32_UDP_UART_Bridge/Subsystem/SEL_pred2_x,timeseries,[1 1 2858],2858
+35,pred1_x,ESP32_UDP_UART_Bridge/Subsystem/SEL_pred1_x,timeseries,[1 1 2858],2858
+36,src2_x,ESP32_UDP_UART_Bridge/Subsystem/SEL_src2_x,timeseries,[1 1 2858],2858
+37,src1_x,ESP32_UDP_UART_Bridge/Subsystem/SEL_src1_x,timeseries,[1 1 2858],2858
+38,safe_yaw_u,ESP32_UDP_UART_Bridge/Subsystem/SEL_safe_yaw_u,timeseries,[1 1 2858],2858
+39,fused_yaw_u,ESP32_UDP_UART_Bridge/Subsystem/SEL_fused_yaw_u,timeseries,[1 1 2858],2858
+40,pred2_yaw_u,ESP32_UDP_UART_Bridge/Subsystem/SEL_pred2_yaw_u,timeseries,[1 1 2858],2858
+41,pred1_yaw_u,ESP32_UDP_UART_Bridge/Subsystem/SEL_pred1_yaw_u,timeseries,[1 1 2858],2858
+42,src2_yaw_u,ESP32_UDP_UART_Bridge/Subsystem/SEL_src2_yaw_u,timeseries,[1 1 2858],2858
+43,src1_yaw_u,ESP32_UDP_UART_Bridge/Subsystem/SEL_src1_yaw_u,timeseries,[1 1 2858],2858
+44,safe_y,ESP32_UDP_UART_Bridge/Subsystem/SEL_safe_y,timeseries,[1 1 2858],2858
+45,fused_y,ESP32_UDP_UART_Bridge/Subsystem/SEL_fused_y,timeseries,[1 1 2858],2858
+46,pred2_y,ESP32_UDP_UART_Bridge/Subsystem/SEL_pred2_y,timeseries,[1 1 2858],2858
+47,pred1_y,ESP32_UDP_UART_Bridge/Subsystem/SEL_pred1_y,timeseries,[1 1 2858],2858
+48,src2_y,ESP32_UDP_UART_Bridge/Subsystem/SEL_src2_y,timeseries,[1 1 2858],2858
+49,src1_y,ESP32_UDP_UART_Bridge/Subsystem/SEL_src1_y,timeseries,[1 1 2858],2858
+50,Selector8:1,ESP32_UDP_UART_Bridge/Selector8,timeseries,[1 1 2858],2858
+51,Selector8,ESP32_UDP_UART_Bridge/To Workspace8,timeseries,[1 1 2858],2858
+52,MATLAB System:5,ESP32_UDP_UART_Bridge/MATLAB System,timeseries,[1 1 2858],2858
+53,MATLAB System:6,ESP32_UDP_UART_Bridge/MATLAB System,timeseries,[1 1 2858],2858
+54,MATLAB System:7,ESP32_UDP_UART_Bridge/MATLAB System,timeseries,[1 1 2858],2858
+55,Mux3:1(2),ESP32_UDP_UART_Bridge/Subsystem/Mux3,timeseries,[2858 1],2858
+56,Mux1(2),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+57,Mux1(3),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+58,Mux1(4),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+59,Mux1(5),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+60,Mux1(6),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+61,Mux_Trajectory_X(2),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+62,Mux_Trajectory_X(3),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+63,Mux_Trajectory_X(4),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+64,Mux_Trajectory_X(5),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858
+65,Mux_Trajectory_X(6),ESP32_UDP_UART_Bridge/Subsystem/XY_All_Trajectories,timeseries,[2858 1],2858

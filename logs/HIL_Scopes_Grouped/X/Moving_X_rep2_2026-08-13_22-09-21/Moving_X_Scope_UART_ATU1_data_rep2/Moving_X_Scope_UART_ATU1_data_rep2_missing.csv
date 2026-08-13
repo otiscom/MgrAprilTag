@@ -1,0 +1,7 @@
+scope_folder,panel_index,panel_title,signal_label,reason
+Moving_X_Scope_UART_ATU1_data_rep2,1,,valid,not_found
+Moving_X_Scope_UART_ATU1_data_rep2,1,,deadman,not_found
+Moving_X_Scope_UART_ATU1_data_rep2,1,,move_en,not_found
+Moving_X_Scope_UART_ATU1_data_rep2,1,,fused_available,not_found
+Moving_X_Scope_UART_ATU1_data_rep2,1,,safe_to_drive,not_found
+Moving_X_Scope_UART_ATU1_data_rep2,1,,hard_stop,not_found

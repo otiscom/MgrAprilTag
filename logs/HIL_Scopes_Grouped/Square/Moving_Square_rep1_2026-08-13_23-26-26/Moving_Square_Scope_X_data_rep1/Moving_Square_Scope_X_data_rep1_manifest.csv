@@ -1,0 +1,9 @@
+signal_label,panel,source_signal,source_channel,num_samples,num_channels,csv_path,conversion_note
+src1_x,X signals,src1_x,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_X_data_rep1\csv\01_src1_x.csv,time_dim_last [1     1  1506]
+src2_x,X signals,src2_x,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_X_data_rep1\csv\09_src2_x.csv,time_dim_last [1     1  1506]
+pred1_x,X signals,pred1_x,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_X_data_rep1\csv\17_pred1_x.csv,time_dim_last [1     1  1506]
+pred2_x,X signals,pred2_x,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_X_data_rep1\csv\25_pred2_x.csv,time_dim_last [1     1  1506]
+fused_x,X signals,fused_x,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_X_data_rep1\csv\33_fused_x.csv,time_dim_last [1     1  1506]
+safe_X,X signals,safe_X,1,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_X_data_rep1\csv\41_safe_X.csv,time_dim_last [1     1  1506]
+safe_to_drive,Safety,Mux_Safety_Status:1,4,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_X_data_rep1\csv\49_safe_to_drive.csv,time_dim_first [1506     8]
+safe_speed_norm,Safety,Mux_Safety_Status:1,8,1506,1,C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Square\Moving_Square_rep1_2026-08-13_23-26-26\Moving_Square_Scope_X_data_rep1\csv\57_safe_speed_norm.csv,time_dim_first [1506     8]

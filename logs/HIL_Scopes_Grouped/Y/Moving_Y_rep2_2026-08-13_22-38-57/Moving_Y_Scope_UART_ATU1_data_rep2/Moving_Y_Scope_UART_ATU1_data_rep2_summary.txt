@@ -1,0 +1,11 @@
+Scope folder: Moving_Y_Scope_UART_ATU1_data_rep2
+Run name: Moving_Y_rep2
+Run ID: 110750
+SDI run name: Run 7: ESP32_UDP_UART_Bridge
+Exported signals: 6
+Missing signals: 0
+Manifest: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Y\Moving_Y_rep2_2026-08-13_22-38-57\Moving_Y_Scope_UART_ATU1_data_rep2\Moving_Y_Scope_UART_ATU1_data_rep2_manifest.csv
+Missing: 
+MAT: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Y\Moving_Y_rep2_2026-08-13_22-38-57\Moving_Y_Scope_UART_ATU1_data_rep2\Moving_Y_Scope_UART_ATU1_data_rep2_signals.mat
+PNG light: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Y\Moving_Y_rep2_2026-08-13_22-38-57\Moving_Y_Scope_UART_ATU1_data_rep2\Moving_Y_Scope_UART_ATU1_data_rep2_scope.png
+PNG dark: C:\Users\mateu\Desktop\Mgr\logs\HIL_Scopes_Grouped\Y\Moving_Y_rep2_2026-08-13_22-38-57\Moving_Y_Scope_UART_ATU1_data_rep2\Moving_Y_Scope_UART_ATU1_data_rep2_scope_dark.png

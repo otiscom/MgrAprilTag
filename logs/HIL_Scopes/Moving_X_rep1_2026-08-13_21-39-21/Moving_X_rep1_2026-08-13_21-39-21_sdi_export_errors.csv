@@ -1,0 +1,66 @@
+signal_index,signal_name,error_message
+1,Selector6:1,All table variables must have the same number of rows.
+2,Selector6,All table variables must have the same number of rows.
+3,Selector1:1,All table variables must have the same number of rows.
+4,Selector5:1,All table variables must have the same number of rows.
+5,Selector1,All table variables must have the same number of rows.
+6,Selector5,All table variables must have the same number of rows.
+7,Selector2:1,All table variables must have the same number of rows.
+8,Selector3:1,All table variables must have the same number of rows.
+9,Selector7:1,All table variables must have the same number of rows.
+10,Selector2,All table variables must have the same number of rows.
+11,Selector3,All table variables must have the same number of rows.
+12,Selector7,All table variables must have the same number of rows.
+13,Mux_Safety_Status:1,All table variables must have the same number of rows.
+14,Mux_Fusion_Status:1,All table variables must have the same number of rows.
+15,Mux_Source_Status:1,All table variables must have the same number of rows.
+16,Mux1:1,All table variables must have the same number of rows.
+17,Mux1(1),All table variables must have the same number of rows.
+18,Mux2:1,All table variables must have the same number of rows.
+19,Mux_Trajectory_X:1,All table variables must have the same number of rows.
+20,Mux_Trajectory_X(1),All table variables must have the same number of rows.
+21,Mux:1,All table variables must have the same number of rows.
+22,Selector4:1,All table variables must have the same number of rows.
+23,Selector4,All table variables must have the same number of rows.
+24,Mux3:1(1),All table variables must have the same number of rows.
+25,MATLAB Function5:1,All table variables must have the same number of rows.
+26,MATLAB Function5:2,All table variables must have the same number of rows.
+27,MATLAB Function5:3,All table variables must have the same number of rows.
+28,MATLAB Function5:4,All table variables must have the same number of rows.
+29,MATLAB Function5:5,All table variables must have the same number of rows.
+30,MATLAB Function5:6,All table variables must have the same number of rows.
+31,MATLAB Function5:7,All table variables must have the same number of rows.
+32,safe_X,All table variables must have the same number of rows.
+33,fused_x,All table variables must have the same number of rows.
+34,pred2_x,All table variables must have the same number of rows.
+35,pred1_x,All table variables must have the same number of rows.
+36,src2_x,All table variables must have the same number of rows.
+37,src1_x,All table variables must have the same number of rows.
+38,safe_yaw_u,All table variables must have the same number of rows.
+39,fused_yaw_u,All table variables must have the same number of rows.
+40,pred2_yaw_u,All table variables must have the same number of rows.
+41,pred1_yaw_u,All table variables must have the same number of rows.
+42,src2_yaw_u,All table variables must have the same number of rows.
+43,src1_yaw_u,All table variables must have the same number of rows.
+44,safe_y,All table variables must have the same number of rows.
+45,fused_y,All table variables must have the same number of rows.
+46,pred2_y,All table variables must have the same number of rows.
+47,pred1_y,All table variables must have the same number of rows.
+48,src2_y,All table variables must have the same number of rows.
+49,src1_y,All table variables must have the same number of rows.
+50,Selector8:1,All table variables must have the same number of rows.
+51,Selector8,All table variables must have the same number of rows.
+52,MATLAB System:5,All table variables must have the same number of rows.
+53,MATLAB System:6,All table variables must have the same number of rows.
+54,MATLAB System:7,All table variables must have the same number of rows.
+55,Mux3:1(2),All table variables must have the same number of rows.
+56,Mux1(2),All table variables must have the same number of rows.
+57,Mux1(3),All table variables must have the same number of rows.
+58,Mux1(4),All table variables must have the same number of rows.
+59,Mux1(5),All table variables must have the same number of rows.
+60,Mux1(6),All table variables must have the same number of rows.
+61,Mux_Trajectory_X(2),All table variables must have the same number of rows.
+62,Mux_Trajectory_X(3),All table variables must have the same number of rows.
+63,Mux_Trajectory_X(4),All table variables must have the same number of rows.
+64,Mux_Trajectory_X(5),All table variables must have the same number of rows.
+65,Mux_Trajectory_X(6),All table variables must have the same number of rows.
