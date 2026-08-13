@@ -5,7 +5,6 @@ SetStructure Advanced
 
 project setCustomFWPath "C:\Users\mateu\STM32Cube\Repository\STM32Cube_FW_L4_V1.17.2"
 
-config save C:\Users\mateu\Desktop\Mgr\Simulink\HIL\STM32\01_UART_Controller_PWM\STM32_UART_PWM_OUTPUT_CUBEMX\STM32_UART_PWM_OUTPUT_CUBEMX.ioc
-
+project generate 
 
 exit wait
